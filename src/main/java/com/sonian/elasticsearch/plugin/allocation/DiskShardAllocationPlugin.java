@@ -17,9 +17,14 @@
 
 package com.sonian.elasticsearch.plugin.allocation;
 
+import com.sonian.elasticsearch.allocation.DiskShardsAllocatorModule;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.rest.RestModule;
+
+import java.util.Collection;
 
 /**
  * @author dakrone
@@ -42,6 +47,11 @@ public class DiskShardAllocationPlugin extends AbstractPlugin {
 
     @Override public Settings additionalSettings() {
         return super.additionalSettings();
+    }
+
+    @Override
+    public Collection<Class<? extends Module>> modules() {
+        return ImmutableList.<Class<? extends Module>>of(DiskShardsAllocatorModule.class);
     }
 
 // TODO: have a rest endpoint to manually balance?
