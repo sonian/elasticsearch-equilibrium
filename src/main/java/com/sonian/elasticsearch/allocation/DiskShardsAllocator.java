@@ -116,9 +116,6 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
         NodesStatsResponse stats = nodeFsStats();
         RoutingNode[] sortedNodesLeastToHigh = sortedNodesLeastToHigh(allocation, stats);
-//        if (sortedNodesLeastToHigh.length == 0) {
-//            return false;
-//        }
         int lowIndex = 0;
         int highIndex = sortedNodesLeastToHigh.length - 1;
         boolean relocationPerformed;
@@ -179,9 +176,6 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         }
         NodesStatsResponse stats = nodeFsStats();
         RoutingNode[] sortedNodesLeastToHigh = sortedNodesLeastToHigh(allocation, stats);
-//        if (sortedNodesLeastToHigh.length == 0) {
-//            return false;
-//        }
 
         for (RoutingNode nodeToCheck : sortedNodesLeastToHigh) {
             // check if its the node we are moving from, no sense to check on it
@@ -203,28 +197,6 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         return changed;
     }
 
-    // defunct, kept here for me to refer to
-//    private RoutingNode[] sortedNodesLeastToHighShardCount(RoutingAllocation allocation) {
-//        // create count per node id, taking into account relocations
-//        final TObjectIntHashMap<String> nodeCounts = new TObjectIntHashMap<String>();
-//        for (RoutingNode node : allocation.routingNodes()) {
-//            for (int i = 0; i < node.shards().size(); i++) {
-//                ShardRouting shardRouting = node.shards().get(i);
-//                String nodeId = shardRouting.relocating() ? shardRouting.relocatingNodeId() : shardRouting.currentNodeId();
-//                nodeCounts.adjustOrPutValue(nodeId, 1, 1);
-//            }
-//        }
-//
-//        RoutingNode[] nodes = allocation.routingNodes().nodesToShards().values().toArray(new RoutingNode[allocation.routingNodes().nodesToShards().values().size()]);
-//        Arrays.sort(nodes, new Comparator<RoutingNode>() {
-//            @Override
-//            public int compare(RoutingNode o1, RoutingNode o2) {
-//                return nodeCounts.get(o1.nodeId()) - nodeCounts.get(o2.nodeId());
-//            }
-//        });
-//        return nodes;
-//    }
-
     // Return nodes, sorted by average available disk space
     private RoutingNode[] sortedNodesLeastToHigh(RoutingAllocation allocation, final NodesStatsResponse nodeStats) {
         // create count per node id, taking into account relocations
@@ -241,6 +213,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         Arrays.sort(nodes, new Comparator<RoutingNode>() {
             @Override
             public int compare(RoutingNode o1, RoutingNode o2) {
+                //return nodeCounts.get(o1.nodeId()) - nodeCounts.get(o2.nodeId());
                 FsStats fs1 = nodeStats.getNodesMap().get(o1.nodeId()).fs();
                 FsStats fs2 = nodeStats.getNodesMap().get(o2.nodeId()).fs();
                 long avgAvailable1 = averageAvailableBytes(fs1);
@@ -283,13 +256,13 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                                        NodesStatsResponse nodeStats) {
         boolean enoughSpace = true;
         
-        logger.info("+ enoughDiskForShard" + shard.shardId() + ", " + routingNode.nodeId());
+        logger.info("enoughDiskForShard" + shard.shardId() + ", " + routingNode.nodeId());
         
         FsStats fs = nodeStats.getNodesMap().get(routingNode.nodeId()).fs();
         Iterator<FsStats.Info> i = fs.iterator();
         while (i.hasNext()) {
             FsStats.Info stats = i.next();
-            logger.info("+ attrs: " + stats.available().bytes() + ", " + stats.total().bytes());
+            logger.info("Space: " + stats.available().bytes() + " bytes available, " + stats.total().bytes() + " total bytes.");
             double percentFree = ((double)stats.available().bytes() / (double)stats.total().bytes()) * 100.0;
             logger.info("Percentage Free: " + percentFree);
             if (percentFree < this.minimumAvailablePercentage) {
