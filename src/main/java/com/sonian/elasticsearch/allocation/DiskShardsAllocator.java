@@ -213,6 +213,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     }
 
     private boolean enoughDiskForShard(MutableShardRouting shard, RoutingNode routingNode, RoutingAllocation allocation) {
+        boolean enoughSpace = true;
+        
         logger.info("+ enoughDiskForShard" + shard.shardId() + ", " + routingNode.nodeId());
         
         // TODO: only do one stats request, pass in the results for all nodes
@@ -225,8 +227,14 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         Iterator<FsStats.Info> i = fs.iterator();
         while (i.hasNext()) {
             FsStats.Info stats = i.next();
-            logger.info("+ attrs: " + stats.available() + ", " + stats.free() + ", ");
+            logger.info("+ attrs: " + stats.available().bytes() + ", " + stats.total().bytes());
+            double percentFree = ((double)stats.available().bytes() / (double)stats.total().bytes()) * 100.0;
+            logger.info("Percentage Free: " + percentFree);
+            if (percentFree < 50.0) {
+                logger.info("Throttling shard allocation due to excessive disk use on " + routingNode.nodeId());
+                enoughSpace = false;
+            }
         }
-        return true;
+        return enoughSpace;
     }
 }
