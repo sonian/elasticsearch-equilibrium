@@ -271,10 +271,10 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     private NodesStatsResponse nodeFsStats() {
         logger.info("nodeFsStats");
         NodesStatsRequest request = new NodesStatsRequest(Strings.EMPTY_ARRAY);
-        request.timeout(TimeValue.timeValueMillis(1000));
+        request.timeout(TimeValue.timeValueMillis(10000));
         request.clear();
         request.fs(true);
-        NodesStatsResponse resp = nodesStatsAction.execute(request).actionGet(2000);
+        NodesStatsResponse resp = nodesStatsAction.execute(request).actionGet(20000);
         return resp;
     }
 
