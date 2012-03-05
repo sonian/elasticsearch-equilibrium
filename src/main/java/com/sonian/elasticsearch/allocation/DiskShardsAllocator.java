@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -55,8 +56,9 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         logger.info("allocateUnassigned");
         boolean changed = false;
         RoutingNodes routingNodes = allocation.routingNodes();
+        NodesStatsResponse stats = nodeFsStats();
 
-        RoutingNode[] nodes = sortedNodesLeastToHigh(allocation);
+        RoutingNode[] nodes = sortedNodesLeastToHigh(allocation, stats);
 
         Iterator<MutableShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
         int lastNode = 0;
@@ -64,7 +66,6 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         while (unassignedIterator.hasNext()) {
             MutableShardRouting shard = unassignedIterator.next();
             // do the allocation, finding the least "busy" node
-            // TODO: find the least "full" node
             for (int i = 0; i < nodes.length; i++) {
                 RoutingNode node = nodes[lastNode];
                 lastNode++;
@@ -73,7 +74,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                 }
 
                 if (allocation.deciders().canAllocate(shard, node, allocation).allocate() &&
-                        this.enoughDiskForShard(shard, node, allocation)) {
+                        this.enoughDiskForShard(shard, node, allocation, stats)) {
                     int numberOfShardsToAllocate = routingNodes.requiredAverageNumberOfShardsPerNode() - node.shards().size();
                     if (numberOfShardsToAllocate <= 0) {
                         continue;
@@ -91,9 +92,9 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         for (Iterator<MutableShardRouting> it = routingNodes.unassigned().iterator(); it.hasNext(); ) {
             MutableShardRouting shard = it.next();
             // go over the nodes and try and allocate the remaining ones
-            for (RoutingNode routingNode : sortedNodesLeastToHigh(allocation)) {
+            for (RoutingNode routingNode : sortedNodesLeastToHigh(allocation,stats)) {
                 if (allocation.deciders().canAllocate(shard, routingNode, allocation).allocate() &&
-                        this.enoughDiskForShard(shard, routingNode, allocation)) {
+                        this.enoughDiskForShard(shard, routingNode, allocation, stats)) {
                     changed = true;
                     routingNode.add(shard);
                     it.remove();
@@ -108,7 +109,9 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     public boolean rebalance(RoutingAllocation allocation) {
         logger.info("rebalance");
         boolean changed = false;
-        RoutingNode[] sortedNodesLeastToHigh = sortedNodesLeastToHigh(allocation);
+
+        NodesStatsResponse stats = nodeFsStats();
+        RoutingNode[] sortedNodesLeastToHigh = sortedNodesLeastToHigh(allocation, stats);
         if (sortedNodesLeastToHigh.length == 0) {
             return false;
         }
@@ -141,7 +144,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                     }
 
                     if (allocation.deciders().canAllocate(startedShard, lowRoutingNode, allocation).allocate() &&
-                            this.enoughDiskForShard(startedShard, lowRoutingNode, allocation)) {
+                            this.enoughDiskForShard(startedShard, lowRoutingNode, allocation, stats)) {
                         changed = true;
                         lowRoutingNode.add(new MutableShardRouting(startedShard.index(), startedShard.id(),
                                 lowRoutingNode.nodeId(), startedShard.currentNodeId(),
@@ -167,7 +170,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         logger.info("move");
         assert shardRouting.started();
         boolean changed = false;
-        RoutingNode[] sortedNodesLeastToHigh = sortedNodesLeastToHigh(allocation);
+        NodesStatsResponse stats = nodeFsStats();
+        RoutingNode[] sortedNodesLeastToHigh = sortedNodesLeastToHigh(allocation, stats);
         if (sortedNodesLeastToHigh.length == 0) {
             return false;
         }
@@ -178,7 +182,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                 continue;
             }
             if (allocation.deciders().canAllocate(shardRouting, nodeToCheck, allocation).allocate() &&
-                    this.enoughDiskForShard(shardRouting, nodeToCheck, allocation)) {
+                    this.enoughDiskForShard(shardRouting, nodeToCheck, allocation, stats)) {
                 nodeToCheck.add(new MutableShardRouting(shardRouting.index(), shardRouting.id(),
                         nodeToCheck.nodeId(), shardRouting.currentNodeId(),
                         shardRouting.primary(), INITIALIZING, shardRouting.version() + 1));
@@ -192,7 +196,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         return changed;
     }
 
-    private RoutingNode[] sortedNodesLeastToHigh(RoutingAllocation allocation) {
+    // defunct, kept here for me to refer to
+    private RoutingNode[] sortedNodesLeastToHighShardCount(RoutingAllocation allocation) {
         // create count per node id, taking into account relocations
         final TObjectIntHashMap<String> nodeCounts = new TObjectIntHashMap<String>();
         for (RoutingNode node : allocation.routingNodes()) {
@@ -202,6 +207,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                 nodeCounts.adjustOrPutValue(nodeId, 1, 1);
             }
         }
+
         RoutingNode[] nodes = allocation.routingNodes().nodesToShards().values().toArray(new RoutingNode[allocation.routingNodes().nodesToShards().values().size()]);
         Arrays.sort(nodes, new Comparator<RoutingNode>() {
             @Override
@@ -212,25 +218,72 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         return nodes;
     }
 
-    private boolean enoughDiskForShard(MutableShardRouting shard, RoutingNode routingNode, RoutingAllocation allocation) {
-        boolean enoughSpace = true;
-        
-        logger.info("+ enoughDiskForShard" + shard.shardId() + ", " + routingNode.nodeId());
-        
-        // TODO: only do one stats request, pass in the results for all nodes
-        NodesStatsRequest request = new NodesStatsRequest(routingNode.nodeId());
+    // Return nodes, sorted by average available disk space
+    private RoutingNode[] sortedNodesLeastToHigh(RoutingAllocation allocation, final NodesStatsResponse nodeStats) {
+        // create count per node id, taking into account relocations
+        final TObjectIntHashMap<String> nodeCounts = new TObjectIntHashMap<String>();
+        for (RoutingNode node : allocation.routingNodes()) {
+            for (int i = 0; i < node.shards().size(); i++) {
+                ShardRouting shardRouting = node.shards().get(i);
+                String nodeId = shardRouting.relocating() ? shardRouting.relocatingNodeId() : shardRouting.currentNodeId();
+                nodeCounts.adjustOrPutValue(nodeId, 1, 1);
+            }
+        }
+
+        RoutingNode[] nodes = allocation.routingNodes().nodesToShards().values().toArray(new RoutingNode[allocation.routingNodes().nodesToShards().values().size()]);
+        Arrays.sort(nodes, new Comparator<RoutingNode>() {
+            @Override
+            public int compare(RoutingNode o1, RoutingNode o2) {
+                //return nodeCounts.get(o1.nodeId()) - nodeCounts.get(o2.nodeId());
+                FsStats fs1 = nodeStats.getNodesMap().get(o1.nodeId()).fs();
+                FsStats fs2 = nodeStats.getNodesMap().get(o2.nodeId()).fs();
+                long avgAvailable1 = averageAvailableBytes(fs1);
+                long avgAvailable2 = averageAvailableBytes(fs2);
+                logger.info(avgAvailable1 + " vs. " + avgAvailable2);
+                return (int)(avgAvailable1 - avgAvailable2);
+            }
+        });
+        return nodes;
+    }
+
+    private long averageAvailableBytes(FsStats fs) {
+        long totalAvail = 0;
+        int statNum = 0;
+        Iterator<FsStats.Info> i = fs.iterator();
+        while (i.hasNext()) {
+            FsStats.Info stats = i.next();
+            totalAvail += stats.available().bytes();
+            statNum++;
+        }
+        long avg = (totalAvail / statNum);
+        logger.info("Average available: " + avg);
+        return avg;
+    }
+    
+    private NodesStatsResponse nodeFsStats() {
+        logger.info("nodeFsStats");
+        NodesStatsRequest request = new NodesStatsRequest(Strings.EMPTY_ARRAY);
         request.timeout(TimeValue.timeValueMillis(1000));
         request.clear();
         request.fs(true);
         NodesStatsResponse resp = nodesStatsAction.execute(request).actionGet(2000);
-        FsStats fs = resp.getNodesMap().get(routingNode.nodeId()).fs();
+        return resp;
+    }
+
+    private boolean enoughDiskForShard(MutableShardRouting shard, RoutingNode routingNode, RoutingAllocation allocation,
+                                       NodesStatsResponse nodeStats) {
+        boolean enoughSpace = true;
+        
+        logger.info("+ enoughDiskForShard" + shard.shardId() + ", " + routingNode.nodeId());
+        
+        FsStats fs = nodeStats.getNodesMap().get(routingNode.nodeId()).fs();
         Iterator<FsStats.Info> i = fs.iterator();
         while (i.hasNext()) {
             FsStats.Info stats = i.next();
             logger.info("+ attrs: " + stats.available().bytes() + ", " + stats.total().bytes());
             double percentFree = ((double)stats.available().bytes() / (double)stats.total().bytes()) * 100.0;
             logger.info("Percentage Free: " + percentFree);
-            if (percentFree < 50.0) {
+            if (percentFree < 20.0) {
                 logger.info("Throttling shard allocation due to excessive disk use on " + routingNode.nodeId());
                 enoughSpace = false;
             }
