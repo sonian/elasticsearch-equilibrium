@@ -18,9 +18,9 @@
         </license>
     </licenses>
     <scm>
-        <!-- <connection>scm:git:git@github.com:sonian/elasticsearch-allocation.git</connection> -->
-        <!-- <developerConnection>scm:git:git@github.com:sonian/elasticsearch-allocation.git</developerConnection> -->
-        <!-- <url>http://github.com/sonian/elasticsearch-allocation</url> -->
+        <connection>scm:git:git@github.com:sonian/elasticsearch-equilibrium.git</connection>
+        <developerConnection>scm:git:git@github.com:sonian/elasticsearch-equilibrium.git</developerConnection>
+        <url>http://github.com/sonian/elasticsearch-equilibrium</url>
     </scm>
 
     <parent>
