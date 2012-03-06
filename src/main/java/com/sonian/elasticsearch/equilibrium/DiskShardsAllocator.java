@@ -1,4 +1,4 @@
-package com.sonian.elasticsearch.allocation;
+package com.sonian.elasticsearch.equilibrium;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -66,7 +66,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
         while (unassignedIterator.hasNext()) {
             MutableShardRouting shard = unassignedIterator.next();
-            // do the allocation, finding the least "busy" node
+            // do the equilibrium, finding the least "busy" node
             for (int i = 0; i < nodes.length; i++) {
                 RoutingNode node = nodes[lastNode];
                 lastNode++;

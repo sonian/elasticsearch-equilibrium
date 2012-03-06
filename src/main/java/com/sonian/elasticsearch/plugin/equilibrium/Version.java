@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.sonian.elasticsearch.plugin.allocation;
+package com.sonian.elasticsearch.plugin.equilibrium;
 
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
@@ -37,7 +37,7 @@ public class Version {
     static {
         Properties props = new Properties();
         try {
-            InputStream stream = Version.class.getClassLoader().getResourceAsStream("com/sonian/elasticsearch/plugin/allocation/version.properties");
+            InputStream stream = Version.class.getClassLoader().getResourceAsStream("com/sonian/elasticsearch/plugin/equilibrium/version.properties");
             props.load(stream);
             stream.close();
         } catch (Exception e) {
@@ -64,7 +64,7 @@ public class Version {
     }
 
     public static String full() {
-        StringBuilder sb = new StringBuilder("elasticsearch-allocation/");
+        StringBuilder sb = new StringBuilder("elasticsearch-equilibrium/");
         sb.append(number);
         if (snapshotBuild) {
             sb.append("/").append(date);

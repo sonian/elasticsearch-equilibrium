@@ -1,6 +1,5 @@
-package com.sonian.elasticsearch.allocation;
+package com.sonian.elasticsearch.equilibrium;
 
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocatorModule;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;

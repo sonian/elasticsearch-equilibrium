@@ -15,14 +15,13 @@
  */
 
 
-package com.sonian.elasticsearch.plugin.allocation;
+package com.sonian.elasticsearch.plugin.equilibrium;
 
-import com.sonian.elasticsearch.allocation.DiskShardsAllocatorModule;
+import com.sonian.elasticsearch.equilibrium.DiskShardsAllocatorModule;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.rest.RestModule;
 
 import java.util.Collection;
 
@@ -38,7 +37,7 @@ public class DiskShardAllocationPlugin extends AbstractPlugin {
     }
 
     @Override public String name() {
-        return "allocation";
+        return "equilibrium";
     }
 
     @Override public String description() {
