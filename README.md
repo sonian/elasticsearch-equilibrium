@@ -4,8 +4,6 @@ In elasticsearch.yml:
 cluster.routing.minimumAvailablePercentage: 20.0
 ```
 
-```
-sudo -u nobody bin/plugin -remove elasticsearch-equilibrium
-
-sudo -u nobody bin/plugin -install elasticsearch-equilibrium -url file:///path/to/elasticsearch-equilibrium-0.19.0-SNAPSHOT.jar
-```
+This plugin currently keeps ES from allocating shards to a node with
+less than minimumAvailablePercentage percentage available disk space
+on the ES data mount points.
