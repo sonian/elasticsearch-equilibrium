@@ -39,7 +39,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     public DiskShardsAllocator(Settings settings, TransportNodesStatsAction nodesStatsAction) {
         super(settings);
         this.nodesStatsAction = nodesStatsAction;
-        this.minimumAvailablePercentage = settings.getAsDouble("cluster.routing.minimumAvailablePercentage", 50.0);
+        this.minimumAvailablePercentage = settings.getAsDouble("cluster.routing.minimumAvailablePercentage", 20.0);
     }
 
     @Override
@@ -213,13 +213,17 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         Arrays.sort(nodes, new Comparator<RoutingNode>() {
             @Override
             public int compare(RoutingNode o1, RoutingNode o2) {
-                //return nodeCounts.get(o1.nodeId()) - nodeCounts.get(o2.nodeId());
-                FsStats fs1 = nodeStats.getNodesMap().get(o1.nodeId()).fs();
-                FsStats fs2 = nodeStats.getNodesMap().get(o2.nodeId()).fs();
-                long avgAvailable1 = averageAvailableBytes(fs1);
-                long avgAvailable2 = averageAvailableBytes(fs2);
-                logger.info(avgAvailable1 + " vs. " + avgAvailable2);
-                return (int)(avgAvailable1 - avgAvailable2);
+                int c1 = nodeCounts.get(o1.nodeId());
+                int c2 = nodeCounts.get(o2.nodeId());
+                logger.info("comparing " + o1.nodeId() + "[" + c1 + "]"
+                        + " to " + o2.nodeId() + "[" + c2 + "]");
+                return (c1 - c2);
+                //FsStats fs1 = nodeStats.getNodesMap().get(o1.nodeId()).fs();
+                //FsStats fs2 = nodeStats.getNodesMap().get(o2.nodeId()).fs();
+                //long avgAvailable1 = averageAvailableBytes(fs1);
+                //long avgAvailable2 = averageAvailableBytes(fs2);
+                //logger.info(avgAvailable1 + " vs. " + avgAvailable2);
+                //return (int)(avgAvailable1 - avgAvailable2);
             }
         });
         return nodes;
@@ -257,7 +261,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         boolean enoughSpace = true;
         
         logger.info("enoughDiskForShard" + shard.shardId() + ", " + routingNode.nodeId());
-        
+
         FsStats fs = nodeStats.getNodesMap().get(routingNode.nodeId()).fs();
         Iterator<FsStats.Info> i = fs.iterator();
         while (i.hasNext()) {
