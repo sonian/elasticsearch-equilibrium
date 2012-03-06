@@ -39,7 +39,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     public DiskShardsAllocator(Settings settings, TransportNodesStatsAction nodesStatsAction) {
         super(settings);
         this.nodesStatsAction = nodesStatsAction;
-        this.minimumAvailablePercentage = settings.getAsDouble("cluster.routing.minimumAvailablePercentage", 20.0);
+        this.minimumAvailablePercentage = settings.getComponentSettings(this.getClass()).getAsDouble("minimumAvailablePercentage", 20.0);
     }
 
     @Override

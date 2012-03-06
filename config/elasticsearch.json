@@ -1,5 +1,8 @@
 {
     "cluster": {
         "name": "disk-allocation-test"
+    },
+    "sonian.elasticsearch.equilibrium": {
+        "enabled": true
     }
 }
