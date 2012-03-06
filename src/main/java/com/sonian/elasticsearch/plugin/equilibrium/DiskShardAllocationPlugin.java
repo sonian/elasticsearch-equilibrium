@@ -41,7 +41,7 @@ public class DiskShardAllocationPlugin extends AbstractPlugin {
     }
 
     @Override public String description() {
-        return "Allocation Plugin Version: " + Version.number() + " (" + Version.date() + ")";
+        return "Equilibrium Plugin Version: " + Version.number() + " (" + Version.date() + ")";
     }
 
     @Override public Settings additionalSettings() {

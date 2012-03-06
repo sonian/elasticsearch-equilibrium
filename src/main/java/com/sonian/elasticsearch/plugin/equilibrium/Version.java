@@ -73,10 +73,10 @@ public class Version {
     }
 
     public static String description() {
-        return "ElasticSearch ZooKeeper Plugin Version: " + number + " (" + date() + ")";
+        return "ElasticSearch Equilibrium Plugin Version: " + number + " (" + date() + ")";
     }
 
     public static void main(String[] args) {
-        System.out.println("ElasticSearch ZooKeeper Plugin Version: " + number + " (" + date() + "), JVM: " + JvmInfo.jvmInfo().vmVersion());
+        System.out.println("ElasticSearch Equilibrium Plugin Version: " + number + " (" + date() + "), JVM: " + JvmInfo.jvmInfo().vmVersion());
     }
 }

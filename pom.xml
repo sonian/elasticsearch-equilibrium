@@ -2,10 +2,10 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <name>elasticsearch-allocation</name>
+    <name>elasticsearch-equilibrium</name>
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.sonian</groupId>
-    <artifactId>elasticsearch-allocation</artifactId>
+    <artifactId>elasticsearch-equilibrium</artifactId>
     <version>0.19.0-SNAPSHOT</version>
     <packaging>jar</packaging>
     <description>Shard allocation plugin for ElasticSearch</description>
