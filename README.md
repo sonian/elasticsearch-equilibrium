@@ -1,4 +1,8 @@
-Nothing to see here, move along.
+In elasticsearch.yml:
+
+```yaml
+cluster.routing.minimumAvailablePercentage: 20.0
+```
 
 ```
 sudo -u nobody bin/plugin -remove elasticsearch-equilibrium
