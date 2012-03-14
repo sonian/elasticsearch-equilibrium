@@ -215,7 +215,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             public int compare(RoutingNode o1, RoutingNode o2) {
                 int c1 = nodeCounts.get(o1.nodeId());
                 int c2 = nodeCounts.get(o2.nodeId());
-                logger.info("comparing " + o1.nodeId() + "[" + c1 + "]"
+                logger.trace("comparing " + o1.nodeId() + "[" + c1 + "]"
                         + " to " + o2.nodeId() + "[" + c2 + "]");
                 return (c1 - c2);
                 //FsStats fs1 = nodeStats.getNodesMap().get(o1.nodeId()).fs();
