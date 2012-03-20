@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.sonian</groupId>
     <artifactId>elasticsearch-equilibrium</artifactId>
-    <version>0.19.1-SNAPSHOT</version>
+    <version>0.19.1</version>
     <packaging>jar</packaging>
     <description>Shard allocation plugin for ElasticSearch</description>
     <inceptionYear>2011</inceptionYear>
@@ -30,7 +30,7 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>0.19.0</elasticsearch.version>
+        <elasticsearch.version>0.19.1</elasticsearch.version>
         <allocation.version>3.3.3</allocation.version>
     </properties>
 
