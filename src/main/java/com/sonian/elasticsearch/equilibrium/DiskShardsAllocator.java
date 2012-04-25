@@ -17,44 +17,80 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.service.InternalIndexService;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.fs.FsStats;
 
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
+import java.io.IOException;
+import java.util.*;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 
 /**
+ * DiskShardsAllocator is a copy of the stock-ES EvenCountShardsAllocator,
+ * but checks (in addition) that nodes are not above a certain threshold,
+ * and refuses to relocate shards to them if they have disk usage above this
+ *
  * @author dakrone
  */
 public class DiskShardsAllocator extends AbstractComponent implements ShardsAllocator {
 
+    // action used to gather FsStats for all the nodes in the cluster, to check
+    // their disk usage
     private final TransportNodesStatsAction nodesStatsAction;
+
+    // the minimum percentage of free disk space before we stop sending shards
+    // to a node
     private final double minimumAvailablePercentage;
 
+    // service used to retrieve an InternalIndexShard to estimate the size of
+    // the shard in bytes
+    private final IndicesService indicesService;
+
     @Inject
-    public DiskShardsAllocator(Settings settings, TransportNodesStatsAction nodesStatsAction) {
+    public DiskShardsAllocator(Settings settings, TransportNodesStatsAction nodesStatsAction, IndicesService indicesService) {
         super(settings);
         this.nodesStatsAction = nodesStatsAction;
+        this.indicesService = indicesService;
+
+        // read in configurable minimum percentage; defaults to 20% free minimum
         this.minimumAvailablePercentage = settings.getComponentSettings(this.getClass()).getAsDouble("minimumAvailablePercentage", 20.0);
     }
 
+    /**
+     * We override the applyStartedShards method only to add logging, the
+     * original method in EvenShardsCountAllocator doesn't do anything
+     */
     @Override
     public void applyStartedShards(StartedRerouteAllocation allocation) {
-        logger.info("applyStartedShards");
+        logger.trace("applyStartedShards");
     }
 
+    /**
+     * We override the applyFailedShards method only to add logging, the
+     * original method in EvenShardsCountAllocator doesn't do anything
+     */
     @Override
     public void applyFailedShards(FailedRerouteAllocation allocation) {
-        logger.info("applyFailedShards");
+        logger.trace("applyFailedShards");
     }
 
+    /**
+     * This allocateUnassigned method is almost identical to the
+     * EvenShardsCountAllocator, however, instead of only checking the
+     * allocation deciders, it also checks that there is enough disk space
+     * for the shard on the node
+     *
+     * @param allocation the current routing allocation for the cluster
+     * @return a boolean indicating whether the routing of the cluster has been changed
+     */
     @Override
     public boolean allocateUnassigned(RoutingAllocation allocation) {
         logger.info("allocateUnassigned");
+
         boolean changed = false;
         RoutingNodes routingNodes = allocation.routingNodes();
         NodesStatsResponse stats = nodeFsStats();
@@ -74,6 +110,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                     lastNode = 0;
                 }
 
+                // Here is our added bit. Where, in addition to checking the
+                // allocation deciders, we check there is enough disk space
                 if (allocation.deciders().canAllocate(shard, node, allocation).allocate() &&
                         this.enoughDiskForShard(shard, node, allocation, stats)) {
                     int numberOfShardsToAllocate = routingNodes.requiredAverageNumberOfShardsPerNode() - node.shards().size();
@@ -106,6 +144,53 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         return changed;
     }
 
+    /**
+     * shardSize attempts to retrieve the size of the shard in bytes
+     *
+     * @param shardRouting shard routing for the shard
+     * @return the size of the shard in bytes, or -1 if the estimate failed
+     */
+    public long shardSize(MutableShardRouting shardRouting) {
+        ShardId shardId = shardRouting.shardId();
+
+        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(shardRouting.getIndex());
+        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(shardId.getId());
+
+        long shardSize;
+
+        try {
+            shardSize = indexShard.store().estimateSize().bytes();
+            logger.info("shard: " + shardId + " space: " + shardSize);
+        } catch (IOException e) {
+            logger.info("Unable to get estimated size for " + shardId + ": " + e.getMessage());
+            return -1;
+        }
+
+        return shardSize;
+    }
+
+    /**
+     * sort things, still a WIP
+     *
+     * @param node
+     * @return
+     */
+    public List<MutableShardRouting> sortedStartedShardsOnNode(RoutingNode node) {
+        List<MutableShardRouting> shards = node.shardsWithState(STARTED);
+        Collections.sort(shards, new Comparator<MutableShardRouting>() {
+            @Override
+            public int compare(MutableShardRouting msr1, MutableShardRouting msr2) {
+                return (int) (shardSize(msr2) - shardSize(msr1));
+            }
+        });
+        return shards;
+    }
+
+    /**
+     *
+     * @param allocation
+     * @return
+     */
     @Override
     public boolean rebalance(RoutingAllocation allocation) {
         logger.info("rebalance");
@@ -138,7 +223,10 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                 }
 
                 boolean relocated = false;
-                List<MutableShardRouting> startedShards = highRoutingNode.shardsWithState(STARTED);
+                List<MutableShardRouting> startedShards = sortedStartedShardsOnNode(highRoutingNode);
+//                for (MutableShardRouting s : startedShards) {
+//                    logger.info("ss:" + s.shardId());
+//                }
                 for (MutableShardRouting startedShard : startedShards) {
                     if (!allocation.deciders().canRebalance(startedShard, allocation)) {
                         continue;
@@ -166,6 +254,13 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         return changed;
     }
 
+    /**
+     *
+     * @param shardRouting
+     * @param node
+     * @param allocation
+     * @return
+     */
     @Override
     public boolean move(MutableShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         logger.info("move");
@@ -198,6 +293,13 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     }
 
     // Return nodes, sorted by average available disk space
+
+    /**
+     *
+     * @param allocation
+     * @param nodeStats
+     * @return
+     */
     private RoutingNode[] sortedNodesLeastToHigh(RoutingAllocation allocation, final NodesStatsResponse nodeStats) {
         // create count per node id, taking into account relocations
         final TObjectIntHashMap<String> nodeCounts = new TObjectIntHashMap<String>();
@@ -230,6 +332,12 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     }
 
     // Averages the available free bytes for a FsStats object
+
+    /**
+     *
+     * @param fs
+     * @return
+     */
     private long averageAvailableBytes(FsStats fs) {
         long totalAvail = 0;
         int statNum = 0;
@@ -245,8 +353,13 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     }
 
     // Return the FS stats for all nodes
+
+    /**
+     *
+     * @return
+     */
     private NodesStatsResponse nodeFsStats() {
-        logger.info("nodeFsStats");
+        logger.trace("nodeFsStats");
         NodesStatsRequest request = new NodesStatsRequest(Strings.EMPTY_ARRAY);
         request.timeout(TimeValue.timeValueMillis(10000));
         request.clear();
@@ -256,6 +369,15 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     }
 
     // Returns true if there is enough disk space for more shards on the node
+
+    /**
+     *
+     * @param shard
+     * @param routingNode
+     * @param allocation
+     * @param nodeStats
+     * @return
+     */
     private boolean enoughDiskForShard(MutableShardRouting shard, RoutingNode routingNode, RoutingAllocation allocation,
                                        NodesStatsResponse nodeStats) {
         boolean enoughSpace = true;
