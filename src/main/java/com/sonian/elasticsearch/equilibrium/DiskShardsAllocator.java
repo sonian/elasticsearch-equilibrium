@@ -170,10 +170,10 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     }
 
     /**
-     * sort things, still a WIP
+     * Sorts shards for a node, based on estimated size of the shard
      *
-     * @param node
-     * @return
+     * @param node RoutingNode to sort shards for
+     * @return sorted list of MutableShardRouting shards, sorted by size with the largest first
      */
     public List<MutableShardRouting> sortedStartedShardsOnNode(RoutingNode node) {
         List<MutableShardRouting> shards = node.shardsWithState(STARTED);
@@ -187,9 +187,13 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     }
 
     /**
+     * This rebalance method is almost identical to the
+     * EvenShardsCountAllocator, however, instead of only checking the
+     * allocation deciders, it also checks that there is enough disk space
+     * for the shard on the node
      *
-     * @param allocation
-     * @return
+     * @param allocation the current routing allocation for the cluster
+     * @return a boolean indicating whether the routing of the cluster has been changed
      */
     @Override
     public boolean rebalance(RoutingAllocation allocation) {
@@ -223,10 +227,14 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                 }
 
                 boolean relocated = false;
+
+                // instead of getting shards randomly from the node, we now
+                // sort them according to their size, largest first
                 List<MutableShardRouting> startedShards = sortedStartedShardsOnNode(highRoutingNode);
 //                for (MutableShardRouting s : startedShards) {
 //                    logger.info("ss:" + s.shardId());
 //                }
+
                 for (MutableShardRouting startedShard : startedShards) {
                     if (!allocation.deciders().canRebalance(startedShard, allocation)) {
                         continue;
@@ -331,12 +339,10 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         return nodes;
     }
 
-    // Averages the available free bytes for a FsStats object
-
     /**
-     *
-     * @param fs
-     * @return
+     * Averages the available free bytes for a FsStats object
+     * @param fs object to average free bytes for
+     * @return the average available bytes for all mount points
      */
     private long averageAvailableBytes(FsStats fs) {
         long totalAvail = 0;
@@ -352,9 +358,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         return avg;
     }
 
-    // Return the FS stats for all nodes
-
     /**
+     * Return the FS stats for all nodes
      *
      * @return
      */
@@ -368,9 +373,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         return resp;
     }
 
-    // Returns true if there is enough disk space for more shards on the node
-
     /**
+     * Check if there is enough disk space for more shards on the node
      *
      * @param shard
      * @param routingNode
