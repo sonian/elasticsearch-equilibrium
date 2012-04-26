@@ -113,7 +113,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                 // Here is our added bit. Where, in addition to checking the
                 // allocation deciders, we check there is enough disk space
                 if (allocation.deciders().canAllocate(shard, node, allocation).allocate() &&
-                        this.enoughDiskForShard(shard, node, allocation, stats)) {
+                        this.enoughDiskForShard(shard, node, stats)) {
                     int numberOfShardsToAllocate = routingNodes.requiredAverageNumberOfShardsPerNode() - node.shards().size();
                     if (numberOfShardsToAllocate <= 0) {
                         continue;
@@ -133,7 +133,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             // go over the nodes and try and allocate the remaining ones
             for (RoutingNode routingNode : sortedNodesLeastToHigh(allocation,stats)) {
                 if (allocation.deciders().canAllocate(shard, routingNode, allocation).allocate() &&
-                        this.enoughDiskForShard(shard, routingNode, allocation, stats)) {
+                        this.enoughDiskForShard(shard, routingNode, stats)) {
                     changed = true;
                     routingNode.add(shard);
                     it.remove();
@@ -240,8 +240,10 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                         continue;
                     }
 
+                    // in addition to checking the deciders, the shard disk is
+                    // checked to ensure it is not above the threshold
                     if (allocation.deciders().canAllocate(startedShard, lowRoutingNode, allocation).allocate() &&
-                            this.enoughDiskForShard(startedShard, lowRoutingNode, allocation, stats)) {
+                            this.enoughDiskForShard(startedShard, lowRoutingNode, stats)) {
                         changed = true;
                         lowRoutingNode.add(new MutableShardRouting(startedShard.index(), startedShard.id(),
                                 lowRoutingNode.nodeId(), startedShard.currentNodeId(),
@@ -263,11 +265,14 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     }
 
     /**
+     * This move method is almost identical to the EvenShardsCountAllocator,
+     * however, instead of only checking the allocation deciders, it also
+     * checks that there is enough disk space for the shard on the node
      *
-     * @param shardRouting
-     * @param node
-     * @param allocation
-     * @return
+     * @param shardRouting shard to be moved
+     * @param node node to move the shard from
+     * @param allocation routing layout for the cluster
+     * @return true if shard routing has been changed, false if not
      */
     @Override
     public boolean move(MutableShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -285,8 +290,11 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             if (nodeToCheck.nodeId().equals(node.nodeId())) {
                 continue;
             }
+
+            // in addition to checking the deciders, we check that we are not
+            // above the disk threshold on the node
             if (allocation.deciders().canAllocate(shardRouting, nodeToCheck, allocation).allocate() &&
-                    this.enoughDiskForShard(shardRouting, nodeToCheck, allocation, stats)) {
+                    this.enoughDiskForShard(shardRouting, nodeToCheck, stats)) {
                 nodeToCheck.add(new MutableShardRouting(shardRouting.index(), shardRouting.id(),
                         nodeToCheck.nodeId(), shardRouting.currentNodeId(),
                         shardRouting.primary(), INITIALIZING, shardRouting.version() + 1));
@@ -300,13 +308,12 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         return changed;
     }
 
-    // Return nodes, sorted by average available disk space
-
     /**
+     * Sort nodes by the number of shards on each, lowest to highest
      *
-     * @param allocation
-     * @param nodeStats
-     * @return
+     * @param allocation allocation of shards in the cluster
+     * @param nodeStats (unused) used for sorting nodes by filesystem usage
+     * @return an array of nodes sorted by lowest to highest shard count
      */
     private RoutingNode[] sortedNodesLeastToHigh(RoutingAllocation allocation, final NodesStatsResponse nodeStats) {
         // create count per node id, taking into account relocations
@@ -341,6 +348,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
     /**
      * Averages the available free bytes for a FsStats object
+     *
      * @param fs object to average free bytes for
      * @return the average available bytes for all mount points
      */
@@ -359,9 +367,10 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     }
 
     /**
-     * Return the FS stats for all nodes
+     * Return the FS stats for all nodes, times out if no responses are
+     * returned in 10 seconds
      *
-     * @return
+     * @return NodesStatsResponse for the FsStats for the cluster
      */
     private NodesStatsResponse nodeFsStats() {
         logger.trace("nodeFsStats");
@@ -376,14 +385,12 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     /**
      * Check if there is enough disk space for more shards on the node
      *
-     * @param shard
-     * @param routingNode
-     * @param allocation
-     * @param nodeStats
-     * @return
+     * @param shard shard that is being checked
+     * @param routingNode node to check disk space of
+     * @param nodeStats the NodesStatsResponse for FS stats of the cluster
+     * @return true if the node is below the threshold, false if not
      */
-    private boolean enoughDiskForShard(MutableShardRouting shard, RoutingNode routingNode, RoutingAllocation allocation,
-                                       NodesStatsResponse nodeStats) {
+    private boolean enoughDiskForShard(MutableShardRouting shard, RoutingNode routingNode, NodesStatsResponse nodeStats) {
         boolean enoughSpace = true;
         
         logger.info("enoughDiskForShard" + shard.shardId() + ", " + routingNode.nodeId());
