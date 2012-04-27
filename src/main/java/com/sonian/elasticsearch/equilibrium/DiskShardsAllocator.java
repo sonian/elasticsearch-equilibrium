@@ -3,6 +3,10 @@ package com.sonian.elasticsearch.equilibrium;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -17,13 +21,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.fs.FsStats;
 
-import java.io.IOException;
 import java.util.*;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -42,23 +42,24 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     // their disk usage
     private final TransportNodesStatsAction nodesStatsAction;
 
+    // action used to gather shard sizes for all nodes in the cluster
+    private final TransportIndicesStatsAction indicesStatsAction;
+
     // the minimum percentage of free disk space before we stop sending shards
     // to a node
     private final double minimumAvailablePercentage;
 
-    // service used to retrieve an InternalIndexShard to estimate the size of
-    // the shard in bytes
-    private final IndicesService indicesService;
-
     @Inject
-    public DiskShardsAllocator(Settings settings, TransportNodesStatsAction nodesStatsAction, IndicesService indicesService) {
+    public DiskShardsAllocator(Settings settings, TransportNodesStatsAction nodesStatsAction,
+                               TransportIndicesStatsAction indicesStatusAction) {
         super(settings);
         this.nodesStatsAction = nodesStatsAction;
-        this.indicesService = indicesService;
+        this.indicesStatsAction = indicesStatusAction;
 
         // read in configurable minimum percentage; defaults to 20% free minimum
         this.minimumAvailablePercentage = settings.getComponentSettings(this.getClass()).getAsDouble("minimumAvailablePercentage", 20.0);
     }
+
 
     /**
      * We override the applyStartedShards method only to add logging, the
@@ -69,6 +70,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         logger.trace("applyStartedShards");
     }
 
+
     /**
      * We override the applyFailedShards method only to add logging, the
      * original method in EvenShardsCountAllocator doesn't do anything
@@ -77,6 +79,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     public void applyFailedShards(FailedRerouteAllocation allocation) {
         logger.trace("applyFailedShards");
     }
+
 
     /**
      * This allocateUnassigned method is almost identical to the
@@ -144,47 +147,6 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         return changed;
     }
 
-    /**
-     * shardSize attempts to retrieve the size of the shard in bytes
-     *
-     * @param shardRouting shard routing for the shard
-     * @return the size of the shard in bytes, or -1 if the estimate failed
-     */
-    public long shardSize(MutableShardRouting shardRouting) {
-        ShardId shardId = shardRouting.shardId();
-
-        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(shardRouting.getIndex());
-        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(shardId.getId());
-
-        long shardSize;
-
-        try {
-            shardSize = indexShard.store().estimateSize().bytes();
-            logger.info("shard: " + shardId + " space: " + shardSize);
-        } catch (IOException e) {
-            logger.info("Unable to get estimated size for " + shardId + ": " + e.getMessage());
-            return -1;
-        }
-
-        return shardSize;
-    }
-
-    /**
-     * Sorts shards for a node, based on estimated size of the shard
-     *
-     * @param node RoutingNode to sort shards for
-     * @return sorted list of MutableShardRouting shards, sorted by size with the largest first
-     */
-    public List<MutableShardRouting> sortedStartedShardsOnNode(RoutingNode node) {
-        List<MutableShardRouting> shards = node.shardsWithState(STARTED);
-        Collections.sort(shards, new Comparator<MutableShardRouting>() {
-            @Override
-            public int compare(MutableShardRouting msr1, MutableShardRouting msr2) {
-                return (int) (shardSize(msr2) - shardSize(msr1));
-            }
-        });
-        return shards;
-    }
 
     /**
      * This rebalance method is almost identical to the
@@ -230,10 +192,14 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
                 // instead of getting shards randomly from the node, we now
                 // sort them according to their size, largest first
-                List<MutableShardRouting> startedShards = sortedStartedShardsOnNode(highRoutingNode);
-//                for (MutableShardRouting s : startedShards) {
-//                    logger.info("ss:" + s.shardId());
-//                }
+                logger.trace("retrieving shard sizes...");
+                HashMap<ShardId, Long> shardSizes = nodeShardStats();
+                logger.trace("sorting shards by size...");
+                List<MutableShardRouting> startedShards = sortedStartedShardsOnNode(highRoutingNode, shardSizes);
+                logger.trace("sorted shards:");
+                for (MutableShardRouting s : startedShards) {
+                    logger.trace("ss:" + s.shardId() + " -> " + shardSizes.get(s.shardId()));
+                }
 
                 for (MutableShardRouting startedShard : startedShards) {
                     if (!allocation.deciders().canRebalance(startedShard, allocation)) {
@@ -263,6 +229,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         } while (relocationPerformed);
         return changed;
     }
+
 
     /**
      * This move method is almost identical to the EvenShardsCountAllocator,
@@ -308,6 +275,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         return changed;
     }
 
+
     /**
      * Sort nodes by the number of shards on each, lowest to highest
      *
@@ -346,6 +314,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         return nodes;
     }
 
+
     /**
      * Averages the available free bytes for a FsStats object
      *
@@ -366,6 +335,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         return avg;
     }
 
+
     /**
      * Return the FS stats for all nodes, times out if no responses are
      * returned in 10 seconds
@@ -381,6 +351,52 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         NodesStatsResponse resp = nodesStatsAction.execute(request).actionGet(20000);
         return resp;
     }
+
+
+    /**
+     * Retrieves the shard sizes for all shards in the cluster, waits 30
+     * seconds for a response from the cluster nodes
+     *
+     * @return a Map of ShardId to size in bytes of the shard
+     */
+    private HashMap<ShardId, Long> nodeShardStats() {
+        logger.trace("nodeShardStats");
+        final HashMap<ShardId, Long> shardSizes = new HashMap<ShardId, Long>();
+        IndicesStatsRequest request = new IndicesStatsRequest();
+        request.clear();
+        request.store(true);
+        IndicesStats resp = indicesStatsAction.execute(request).actionGet(30000);
+        for (ShardStats stats : resp.getShards()) {
+            shardSizes.put(stats.getShardRouting().shardId(), stats.stats().store().getSizeInBytes());
+        }
+        return shardSizes;
+    }
+
+
+    /**
+     * Sorts shards for a node, based on estimated size of the shard
+     *
+     * @param node RoutingNode to sort shards for
+     * @return sorted list of MutableShardRouting shards, sorted by size with the largest first
+     */
+    public List<MutableShardRouting> sortedStartedShardsOnNode(RoutingNode node, Map<ShardId, Long> shardSizes) {
+        logger.trace("sortedStartedShardsOnNode");
+
+        List<MutableShardRouting> shards = node.shardsWithState(STARTED);
+        final HashMap<MutableShardRouting, Long> sizeMap = new HashMap<MutableShardRouting, Long>();
+        for (MutableShardRouting shard : shards) {
+            sizeMap.put(shard, shardSizes.get(shard.shardId()));
+        }
+
+        Collections.sort(shards, new Comparator<MutableShardRouting>() {
+            @Override
+            public int compare(MutableShardRouting msr1, MutableShardRouting msr2) {
+                return (int) (sizeMap.get(msr2) - sizeMap.get(msr1));
+            }
+        });
+        return shards;
+    }
+
 
     /**
      * Check if there is enough disk space for more shards on the node
