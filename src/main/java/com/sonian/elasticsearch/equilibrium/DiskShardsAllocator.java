@@ -92,7 +92,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      */
     @Override
     public boolean allocateUnassigned(RoutingAllocation allocation) {
-        logger.info("allocateUnassigned");
+        logger.trace("allocateUnassigned");
 
         boolean changed = false;
         RoutingNodes routingNodes = allocation.routingNodes();
@@ -117,10 +117,14 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                 // allocation deciders, we check there is enough disk space
                 if (allocation.deciders().canAllocate(shard, node, allocation).allocate() &&
                         this.enoughDiskForShard(shard, node, stats)) {
-                    int numberOfShardsToAllocate = routingNodes.requiredAverageNumberOfShardsPerNode() - node.shards().size();
+
+                    int avgShardCount = routingNodes.requiredAverageNumberOfShardsPerNode();
+                    int numberOfShardsToAllocate = avgShardCount - node.shards().size();
                     if (numberOfShardsToAllocate <= 0) {
                         continue;
                     }
+                    logger.info("Need " + numberOfShardsToAllocate + " shards on " + node.nodeId() +
+                                " to reach the average shard count (" + avgShardCount + ")");
 
                     changed = true;
                     node.add(shard);
@@ -159,7 +163,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      */
     @Override
     public boolean rebalance(RoutingAllocation allocation) {
-        logger.info("rebalance");
+        logger.trace("rebalance");
         boolean changed = false;
         if (allocation.nodes().getSize() == 0) {
             return false;
@@ -243,7 +247,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      */
     @Override
     public boolean move(MutableShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        logger.info("move");
+        logger.trace("move");
         assert shardRouting.started();
         boolean changed = false;
         if (allocation.nodes().getSize() == 0) {
@@ -409,19 +413,19 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     private boolean enoughDiskForShard(MutableShardRouting shard, RoutingNode routingNode, NodesStatsResponse nodeStats) {
         boolean enoughSpace = true;
         
-        logger.info("enoughDiskForShard" + shard.shardId() + ", " + routingNode.nodeId());
+        logger.info("enoughDiskForShard on " + routingNode.nodeId() + " for: " + shard.shardId());
 
         FsStats fs = nodeStats.getNodesMap().get(routingNode.nodeId()).fs();
         Iterator<FsStats.Info> i = fs.iterator();
         while (i.hasNext()) {
             FsStats.Info stats = i.next();
-            logger.info("Space: " + stats.available().bytes() + " bytes available, " + stats.total().bytes() + " total bytes.");
             double percentFree = ((double)stats.available().bytes() / (double)stats.total().bytes()) * 100.0;
-            logger.info("Percentage Free: " + percentFree);
+            logger.info("Space: " + stats.available().bytes() + " bytes available, " + stats.total().bytes() +
+                        " total bytes. Percent free: [" + percentFree + "]");
             if (percentFree < this.minimumAvailablePercentage) {
                 logger.info("Throttling shard allocation due to excessive disk use " +
-                        "(< " + this.minimumAvailablePercentage + "% free)"
-                        + " on " + routingNode.nodeId());
+                        "(" + percentFree + "< " + this.minimumAvailablePercentage +
+                        "% free) on " + routingNode.nodeId());
                 enoughSpace = false;
             }
         }
