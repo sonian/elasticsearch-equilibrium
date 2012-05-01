@@ -194,18 +194,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
                 boolean relocated = false;
 
-                // instead of getting shards randomly from the node, we now
-                // sort them according to their size, largest first
-                logger.trace("retrieving shard sizes...");
-                HashMap<ShardId, Long> shardSizes = nodeShardStats();
-                logger.trace("sorting shards by size...");
-                // TODO: we probably shouldn't sort by size for relocation because it will load the new node like crazy
-                List<MutableShardRouting> startedShards = sortedStartedShardsOnNodeLargestToSmallest(highRoutingNode, shardSizes);
-                logger.trace("sorted shards:");
-                for (MutableShardRouting s : startedShards) {
-                    logger.trace("ss:" + s.shardId() + " -> " + shardSizes.get(s.shardId()));
-                }
-
+                List<MutableShardRouting> startedShards = highRoutingNode.shardsWithState(STARTED);
                 for (MutableShardRouting startedShard : startedShards) {
                     if (!allocation.deciders().canRebalance(startedShard, allocation)) {
                         continue;
