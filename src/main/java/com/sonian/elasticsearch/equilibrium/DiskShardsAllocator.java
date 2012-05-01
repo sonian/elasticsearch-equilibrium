@@ -292,7 +292,15 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
             // If we weren't able to find shards that could be swapped, just
             // bail out early
-            if (largestShardAvailableForRelocation == null && smallestShardAvailableForRelocation == null) {
+            if (largestShardAvailableForRelocation == null || smallestShardAvailableForRelocation == null) {
+                logger.info("Unable to find shards to swap. [deciders]");
+                return changed;
+            }
+
+            // If we've gone through the list, and the 'larger' shard is
+            // smaller than the 'smaller' shard, don't bother swapping
+            if (shardSizes.get(largestShardAvailableForRelocation.shardId()) <= shardSizes.get(smallestShardAvailableForRelocation)) {
+                logger.info("Unable to find shards to swap. [size-mismatch]");
                 return changed;
             }
 
