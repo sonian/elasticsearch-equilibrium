@@ -49,6 +49,10 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     // to a node
     private final double minimumAvailablePercentage;
 
+    // the minimum difference between the largest and smallest nodes before
+    // a shard swap is attempted
+    private final double minimumSwapDifferencePercentage;
+
     @Inject
     public DiskShardsAllocator(Settings settings, TransportNodesStatsAction nodesStatsAction,
                                TransportIndicesStatsAction indicesStatusAction) {
@@ -56,8 +60,14 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         this.nodesStatsAction = nodesStatsAction;
         this.indicesStatsAction = indicesStatusAction;
 
-        // read in configurable minimum percentage; defaults to 20% free minimum
-        this.minimumAvailablePercentage = settings.getComponentSettings(this.getClass()).getAsDouble("minimumAvailablePercentage", 20.0);
+        Settings compSettings = settings.getComponentSettings(this.getClass());
+
+        // read in configurable minimum percentage; defaults to 20% free
+        // minimum for throttling
+        this.minimumAvailablePercentage = compSettings.getAsDouble("minimumAvailablePercentage", 20.0);
+        // read in configurable difference before shards are swapped, defaults
+        // to 20% difference
+        this.minimumSwapDifferencePercentage = compSettings.getAsDouble("minimumSwapDifferencePercentage", 20.0);
     }
 
 
@@ -223,14 +233,15 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         } while (relocationPerformed);
 
         // Don't keep going if we've already done some rebalancing, only do
-        // this when we're not doing other things
-        if (changed) {
+        // this when we're not doing other things. Also skip the swap check
+        // if only one node is present in the cluster
+        if (changed || allocation.nodes().size() == 1) {
             return changed;
         }
 
         // Added for swapping two shards between disproportionate nodes
         // TODO: I want to move this to a special REST endpoint, so it's not actually part of regular relocation, it's something we kick off
-        logger.info("Doing stuff:");
+        logger.info("Initiating shard swap check.");
         RoutingNode[] nodesSmallestToLargest = sortedNodesByFreeSpaceLeastToHigh(allocation, stats);
         for (RoutingNode node : nodesSmallestToLargest) {
             logger.info("Node: " + node.nodeId() + " -> " + averageAvailableBytes(stats.getNodesMap().get(node.nodeId()).fs()));
@@ -238,13 +249,16 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
         RoutingNode largestNode = nodesSmallestToLargest[nodesSmallestToLargest.length - 1];
         RoutingNode smallestNode = nodesSmallestToLargest[0];
-        long largestNodeSize = 100 - averagePercentageFree(stats.getNodesMap().get(largestNode.nodeId()).fs());
-        long smallestNodeSize = 100 - averagePercentageFree(stats.getNodesMap().get(smallestNode.nodeId()).fs());
+        double largestNodeSize = 100 - averagePercentageFree(stats.getNodesMap().get(largestNode.nodeId()).fs());
+        double smallestNodeSize = 100 - averagePercentageFree(stats.getNodesMap().get(smallestNode.nodeId()).fs());
 
-        long sizeDifference = largestNodeSize - smallestNodeSize;
+        double sizeDifference = largestNodeSize - smallestNodeSize;
 
-        // TODO: 20.0 should be configurable
-        if (sizeDifference >= 20.0) {
+        logger.info("Checking size disparity: (" + sizeDifference + " >= " +
+                    this.minimumSwapDifferencePercentage + ")");
+
+        if (sizeDifference >= this.minimumAvailablePercentage) {
+            logger.info("Size disparity found, checking for swappable shards.");
             HashMap<ShardId, Long> shardSizes = nodeShardStats();
 
             // generate a list of shards on the largest node, largest shard first
@@ -281,6 +295,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                 return changed;
             }
 
+            logger.info("Swapping " + smallestShardAvailableForRelocation.shardId() +
+                        " and " + largestShardAvailableForRelocation);
             // swap the two shards
             this.move(smallestShardAvailableForRelocation, largestNode, allocation);
             this.move(largestShardAvailableForRelocation, smallestNode, allocation);
@@ -415,17 +431,20 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      * @param fs object to average free bytes for
      * @return the average available bytes for all mount points
      */
-    private long averagePercentageFree(FsStats fs) {
-        long totalPercentages = 0;
+    private double averagePercentageFree(FsStats fs) {
+        double totalPercentages = 0;
         int statNum = 0;
         Iterator<FsStats.Info> i = fs.iterator();
         while (i.hasNext()) {
             FsStats.Info stats = i.next();
-            totalPercentages += stats.available().bytes() / stats.total().bytes();
+            double percentFree = 100.0 * ((double)stats.available().bytes() / (double)stats.total().bytes());
+            logger.trace("pFree: " + percentFree + " [" + stats.available().bytes() +
+                         " / " + stats.total().bytes() + "]");
+            totalPercentages += percentFree;
             statNum++;
         }
-        long avg = (totalPercentages / statNum);
-        logger.info("Average percentage free: " + avg);
+        double avg = (totalPercentages / statNum);
+        logger.trace("Average percentage free: " + avg);
         return avg;
     }
 
