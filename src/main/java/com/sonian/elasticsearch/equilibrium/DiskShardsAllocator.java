@@ -243,9 +243,9 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         // TODO: I want to move this to a special REST endpoint, so it's not actually part of regular relocation, it's something we kick off
         logger.info("Initiating shard swap check.");
         RoutingNode[] nodesSmallestToLargest = sortedNodesByFreeSpaceLeastToHigh(allocation, stats);
-        for (RoutingNode node : nodesSmallestToLargest) {
-            logger.info("Node: " + node.nodeId() + " -> " + averageAvailableBytes(stats.getNodesMap().get(node.nodeId()).fs()));
-        }
+//        for (RoutingNode node : nodesSmallestToLargest) {
+//            logger.trace("Node: " + node.nodeId() + " -> " + averageAvailableBytes(stats.getNodesMap().get(node.nodeId()).fs()));
+//        }
 
         RoutingNode largestNode = nodesSmallestToLargest[nodesSmallestToLargest.length - 1];
         RoutingNode smallestNode = nodesSmallestToLargest[0];
@@ -254,7 +254,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
         double sizeDifference = largestNodeSize - smallestNodeSize;
 
-        logger.info("Checking size disparity: (" + sizeDifference + " >= " +
+        logger.info("Checking size disparity: " + largestNode.nodeId() + " -> " +
+                    smallestNode.nodeId() + " (" + sizeDifference + " >= " +
                     this.minimumSwapDifferencePercentage + ")");
 
         if (sizeDifference >= this.minimumAvailablePercentage) {
