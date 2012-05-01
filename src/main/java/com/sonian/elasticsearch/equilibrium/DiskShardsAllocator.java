@@ -232,16 +232,30 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             }
         } while (relocationPerformed);
 
-        // Don't keep going if we've already done some rebalancing, only do
-        // this when we're not doing other things. Also skip the swap check
-        // if only one node is present in the cluster
-        if (changed || allocation.nodes().size() == 1) {
+        return changed;
+    }
+
+
+    /**
+     * The shardSwap method checks to see whether the largest and smallest
+     * nodes are too far apart from each other, in terms of disk space
+     * percentage, and attempts to swap a large shard from the loaded node
+     * for a small shard from the underloaded node
+     *
+     * @param allocation current shard allocation for the cluster
+     * @return true if shards were swapped, false otherwise
+     */
+    public boolean shardSwap(RoutingAllocation allocation) {
+        boolean changed = false;
+
+        // Skip if only one node is present in the cluster
+        if (allocation.nodes().size() == 1) {
+            logger.info("Only one node in the cluster, skipping shard swap check.");
             return changed;
         }
 
-        // Added for swapping two shards between disproportionate nodes
-        // TODO: I want to move this to a special REST endpoint, so it's not actually part of regular relocation, it's something we kick off
         logger.info("Initiating shard swap check.");
+        NodesStatsResponse stats = nodeFsStats();
         RoutingNode[] nodesSmallestToLargest = sortedNodesByFreeSpaceLeastToHigh(allocation, stats);
 //        for (RoutingNode node : nodesSmallestToLargest) {
 //            logger.trace("Node: " + node.nodeId() + " -> " + averageAvailableBytes(stats.getNodesMap().get(node.nodeId()).fs()));
@@ -255,10 +269,10 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         double sizeDifference = largestNodeSize - smallestNodeSize;
 
         logger.info("Checking size disparity: " + largestNode.nodeId() + " -> " +
-                    smallestNode.nodeId() + " (" + sizeDifference + " >= " +
-                    this.minimumSwapDifferencePercentage + ")");
+                smallestNode.nodeId() + " (" + sizeDifference + " >= " +
+                this.minimumSwapDifferencePercentage + ")");
 
-        if (sizeDifference >= this.minimumAvailablePercentage) {
+        if (sizeDifference >= this.minimumSwapDifferencePercentage) {
             logger.info("Size disparity found, checking for swappable shards.");
             HashMap<ShardId, Long> shardSizes = nodeShardStats();
 
@@ -305,7 +319,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             }
 
             logger.info("Swapping " + smallestShardAvailableForRelocation.shardId() +
-                        " and " + largestShardAvailableForRelocation);
+                    " and " + largestShardAvailableForRelocation);
             // swap the two shards
             this.move(smallestShardAvailableForRelocation, largestNode, allocation);
             this.move(largestShardAvailableForRelocation, smallestNode, allocation);
@@ -314,7 +328,6 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
         return changed;
     }
-
 
     /**
      * This move method is almost identical to the EvenShardsCountAllocator,
