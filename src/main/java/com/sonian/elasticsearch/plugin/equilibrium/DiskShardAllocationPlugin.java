@@ -18,10 +18,12 @@
 package com.sonian.elasticsearch.plugin.equilibrium;
 
 import com.sonian.elasticsearch.equilibrium.DiskShardsAllocatorModule;
+import com.sonian.elasticsearch.rest.action.equilibrium.RestNodesEqualizeAction;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.rest.RestModule;
 
 import java.util.Collection;
 
@@ -53,8 +55,10 @@ public class DiskShardAllocationPlugin extends AbstractPlugin {
         return ImmutableList.<Class<? extends Module>>of(DiskShardsAllocatorModule.class);
     }
 
-// TODO: have a rest endpoint to manually balance?
-//    public void onModule(RestModule restModule) {
-//        restModule.addRestAction(RestZooKeeperStatusAction.class);
-//    }
+    @Override
+    public void processModule(Module module) {
+        if (module instanceof RestModule) {
+            ((RestModule) module).addRestAction(RestNodesEqualizeAction.class);
+        }
+    }
 }
