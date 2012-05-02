@@ -53,6 +53,9 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     // a shard swap is attempted
     private final double minimumSwapDifferencePercentage;
 
+    // configurable difference between large and small shards to swap
+    private final double minimumSwapShardRelativeDifferencePercentage;
+
     @Inject
     public DiskShardsAllocator(Settings settings, TransportNodesStatsAction nodesStatsAction,
                                TransportIndicesStatsAction indicesStatusAction) {
@@ -68,6 +71,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         // read in configurable difference before shards are swapped, defaults
         // to 20% difference
         this.minimumSwapDifferencePercentage = compSettings.getAsDouble("minimumSwapDifferencePercentage", 20.0);
+        // read in configurable difference between large and small shards to swap
+        this.minimumSwapShardRelativeDifferencePercentage =  compSettings.getAsDouble("minimumSwapShardRelativeDifferencePercentage", 50.0);
     }
 
 
@@ -133,8 +138,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                     if (numberOfShardsToAllocate <= 0) {
                         continue;
                     }
-                    logger.info("Need " + numberOfShardsToAllocate + " shards on " + node.nodeId() +
-                                " to reach the average shard count (" + avgShardCount + ")");
+                    logger.trace("Need " + numberOfShardsToAllocate + " shards on " + node.nodeId() +
+                                 " to reach the average shard count (" + avgShardCount + ")");
 
                     changed = true;
                     node.add(shard);
@@ -311,18 +316,31 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                 return changed;
             }
 
+            logger.info("Found shards, large: " + largestShardAvailableForRelocation.shardId() +
+                        ", small: " + smallestShardAvailableForRelocation.shardId());
+
             // If we've gone through the list, and the 'larger' shard is
             // smaller than the 'smaller' shard, don't bother swapping
-            if (shardSizes.get(largestShardAvailableForRelocation.shardId()) <= shardSizes.get(smallestShardAvailableForRelocation)) {
-                logger.info("Unable to find shards to swap. [size-mismatch]");
+            long largeSize = shardSizes.get(largestShardAvailableForRelocation.shardId());
+            long smallSize = shardSizes.get(smallestShardAvailableForRelocation.shardId());
+
+            if (largeSize == 0 || smallSize == 0) {
+                logger.warn("Unable to find shards to swap. [shard size 0?!]");
                 return changed;
             }
 
-            logger.info("Swapping " + smallestShardAvailableForRelocation.shardId() +
-                    " and " + largestShardAvailableForRelocation);
+            double shardRelativeSize = (100.0 * smallSize / largeSize);
+            if (shardRelativeSize < this.minimumSwapShardRelativeDifferencePercentage) {
+                logger.info("Unable to find suitable shards to swap. [" + shardRelativeSize +
+                            " < " + this.minimumSwapShardRelativeDifferencePercentage + "]");
+                return changed;
+            }
+
             // swap the two shards
-            this.move(smallestShardAvailableForRelocation, largestNode, allocation);
-            this.move(largestShardAvailableForRelocation, smallestNode, allocation);
+            logger.info("Swapping " + smallestShardAvailableForRelocation.shardId() +
+                        " and " + largestShardAvailableForRelocation);
+            largestShardAvailableForRelocation.relocate(smallestNode.nodeId());
+            smallestShardAvailableForRelocation.relocate(largestNode.nodeId());
             changed = true;
         }
 
@@ -410,6 +428,9 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     private RoutingNode[] sortedNodesByFreeSpaceLeastToHigh(RoutingAllocation allocation,
                                                             final NodesStatsResponse nodeStats) {
         RoutingNode[] nodes = allocation.routingNodes().nodesToShards().values().toArray(new RoutingNode[allocation.routingNodes().nodesToShards().values().size()]);
+        for (RoutingNode node : nodes) {
+            logger.trace("node: " + node.nodeId() + " -> " + averageAvailableBytes(nodeStats.getNodesMap().get(node.nodeId()).fs()));
+        }
         Arrays.sort(nodes, new Comparator<RoutingNode>() {
             @Override
             public int compare(RoutingNode o1, RoutingNode o2) {
@@ -422,6 +443,9 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                 return (int)(avgAvailable1 - avgAvailable2);
             }
         });
+        for (RoutingNode node : nodes) {
+            logger.trace("Snode: " + node.nodeId() + " -> " + averageAvailableBytes(nodeStats.getNodesMap().get(node.nodeId()).fs()));
+        }
         return nodes;
 
     }

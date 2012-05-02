@@ -20,6 +20,7 @@ public class DiskShardsAllocatorModule extends AbstractModule implements PreProc
 
     @Override
     protected void configure() {
+        bind(ClusterEqualizerService.class).asEagerSingleton();
     }
 
     @Override
