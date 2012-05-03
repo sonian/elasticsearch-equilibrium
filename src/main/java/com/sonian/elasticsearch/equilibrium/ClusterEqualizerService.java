@@ -42,7 +42,7 @@ public class ClusterEqualizerService extends AbstractComponent {
         final CountDownLatch latch = new CountDownLatch(1);
         boolean finished = false;
 
-        clusterService.submitStateUpdateTask("Swapping shards",new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("routing-table-updater",new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState clusterState) {
                 try {
@@ -53,7 +53,13 @@ public class ClusterEqualizerService extends AbstractComponent {
                         return clusterState;
                     }
 
-                    return newClusterStateBuilder().state(clusterState).build();
+                    // new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData())
+
+                    RoutingAllocation.Result newRouting = new RoutingAllocation.Result(true,
+                            new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()),
+                            allocation.explanation());
+
+                    return newClusterStateBuilder().state(clusterState).routingResult(newRouting).build();
                 } catch (Exception e) {
                     logger.warn("failed to swap shards", e);
                     failureRef.set(e);

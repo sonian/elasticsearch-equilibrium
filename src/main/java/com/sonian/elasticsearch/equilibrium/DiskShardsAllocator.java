@@ -337,9 +337,25 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             }
 
             // swap the two shards
-            logger.info("Swapping " + smallestShardAvailableForRelocation.shardId() +
-                        " and " + largestShardAvailableForRelocation);
+            logger.info("Swapping ({}) and ({})",
+                        smallestShardAvailableForRelocation,
+                        largestShardAvailableForRelocation);
+            largestNode.add(new MutableShardRouting(smallestShardAvailableForRelocation.index(),
+                                                    smallestShardAvailableForRelocation.id(),
+                                                    largestNode.nodeId(),
+                                                    smallestShardAvailableForRelocation.currentNodeId(),
+                                                    smallestShardAvailableForRelocation.primary(),
+                                                    INITIALIZING,
+                                                    smallestShardAvailableForRelocation.version() + 1));
             largestShardAvailableForRelocation.relocate(smallestNode.nodeId());
+
+            smallestNode.add(new MutableShardRouting(largestShardAvailableForRelocation.index(),
+                                                     largestShardAvailableForRelocation.id(),
+                                                     smallestNode.nodeId(),
+                                                     largestShardAvailableForRelocation.currentNodeId(),
+                                                     largestShardAvailableForRelocation.primary(),
+                                                     INITIALIZING,
+                                                     largestShardAvailableForRelocation.version() + 1));
             smallestShardAvailableForRelocation.relocate(largestNode.nodeId());
             changed = true;
         }
