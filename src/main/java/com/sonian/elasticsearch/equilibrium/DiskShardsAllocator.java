@@ -113,7 +113,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         RoutingNodes routingNodes = allocation.routingNodes();
         NodesStatsResponse stats = nodeFsStats();
 
-        RoutingNode[] nodes = sortedNodesByShardCountLeastToHigh(allocation, stats);
+        RoutingNode[] nodes = sortedNodesByShardCountLeastToHigh(allocation);
 
         Iterator<MutableShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
         int lastNode = 0;
@@ -153,7 +153,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         for (Iterator<MutableShardRouting> it = routingNodes.unassigned().iterator(); it.hasNext(); ) {
             MutableShardRouting shard = it.next();
             // go over the nodes and try and allocate the remaining ones
-            for (RoutingNode routingNode : sortedNodesByShardCountLeastToHigh(allocation, stats)) {
+            for (RoutingNode routingNode : sortedNodesByShardCountLeastToHigh(allocation)) {
                 if (allocation.deciders().canAllocate(shard, routingNode, allocation).allocate() &&
                         this.enoughDiskForShard(shard, routingNode, stats)) {
                     changed = true;
@@ -185,7 +185,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         }
 
         NodesStatsResponse stats = nodeFsStats();
-        RoutingNode[] sortedNodesLeastToHigh = sortedNodesByShardCountLeastToHigh(allocation, stats);
+        RoutingNode[] sortedNodesLeastToHigh = sortedNodesByShardCountLeastToHigh(allocation);
         int lowIndex = 0;
         int highIndex = sortedNodesLeastToHigh.length - 1;
         boolean relocationPerformed;
@@ -392,7 +392,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             return false;
         }
         NodesStatsResponse stats = nodeFsStats();
-        RoutingNode[] sortedNodesLeastToHigh = sortedNodesByShardCountLeastToHigh(allocation, stats);
+        RoutingNode[] sortedNodesLeastToHigh = sortedNodesByShardCountLeastToHigh(allocation);
 
         for (RoutingNode nodeToCheck : sortedNodesLeastToHigh) {
             // check if its the node we are moving from, no sense to check on it
@@ -422,11 +422,9 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      * Sort nodes by the number of shards on each, lowest to highest
      *
      * @param allocation allocation of shards in the cluster
-     * @param nodeStats (unused) used for sorting nodes by filesystem usage
      * @return an array of nodes sorted by lowest to highest shard count
      */
-    private RoutingNode[] sortedNodesByShardCountLeastToHigh(RoutingAllocation allocation,
-                                                             final NodesStatsResponse nodeStats) {
+    private RoutingNode[] sortedNodesByShardCountLeastToHigh(RoutingAllocation allocation) {
         // create count per node id, taking into account relocations
         final TObjectIntHashMap<String> nodeCounts = new TObjectIntHashMap<String>();
         for (RoutingNode node : allocation.routingNodes()) {
