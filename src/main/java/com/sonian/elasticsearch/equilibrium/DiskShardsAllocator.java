@@ -296,8 +296,11 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             // check if we can find a shard to relocate from the largest to
             // smallest node
             for (MutableShardRouting shard : largestNodeShards) {
+                logger.debug("[large] Checking deciders for {}...", shard);
                 if (allocation.deciders().canAllocate(shard, smallestNode, allocation).allocate()) {
                     largestShardAvailableForRelocation = shard;
+                    logger.debug("[large] Deciders have OKed {} for swapping.",
+                                 largestShardAvailableForRelocation);
                     break;
                 }
             }
@@ -305,8 +308,11 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             // check if we can find a shard to relocate from the smallest to
             // largest node
             for (MutableShardRouting shard : smallestNodeShards) {
+                logger.debug("[small] Checking deciders for {}...", shard);
                 if (allocation.deciders().canAllocate(shard, largestNode, allocation).allocate()) {
                     smallestShardAvailableForRelocation = shard;
+                    logger.debug("[small] Deciders have OKed {} for swapping.",
+                                 smallestShardAvailableForRelocation);
                     break;
                 }
             }
@@ -441,7 +447,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             public int compare(RoutingNode o1, RoutingNode o2) {
                 int c1 = nodeCounts.get(o1.nodeId());
                 int c2 = nodeCounts.get(o2.nodeId());
-                logger.trace("comparing {}[{}] to {}[{}]", o1.nodeId(),
+                logger.trace("comparing {}[{}] to {}[{}]",
+                             o1.nodeId(), c1,
                              o2.nodeId(), c2);
                 return (c1 - c2);
             }
@@ -468,7 +475,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             }
         });
         for (RoutingNode node : nodes) {
-            logger.trace("Snode: " + node.nodeId() + " -> " + averageAvailableBytes(nodeStats.getNodesMap().get(node.nodeId()).fs()));
+            logger.trace("SortedNode: {} -> {}", node.nodeId(),
+                         averagePercentageFree(nodeStats.getNodesMap().get(node.nodeId()).fs()));
         }
         return nodes;
 
@@ -490,7 +498,6 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             statNum++;
         }
         long avg = (totalAvail / statNum);
-        logger.trace("Average available: " + avg);
         return avg;
     }
 
@@ -508,8 +515,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         while (i.hasNext()) {
             FsStats.Info stats = i.next();
             double percentFree = 100.0 * ((double)stats.available().bytes() / (double)stats.total().bytes());
-            logger.trace("pFree: " + percentFree + " [" + stats.available().bytes() +
-                         " / " + stats.total().bytes() + "]");
+            logger.trace("pFree: {} [{} / {}]", percentFree, stats.available().bytes(), stats.total().bytes());
             totalPercentages += percentFree;
             statNum++;
         }
