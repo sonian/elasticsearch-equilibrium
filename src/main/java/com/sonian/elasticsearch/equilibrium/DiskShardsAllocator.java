@@ -262,20 +262,22 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         logger.info("Initiating shard swap check.");
         NodesStatsResponse stats = nodeFsStats();
         RoutingNode[] nodesSmallestToLargest = sortedNodesByFreeSpaceLeastToHigh(allocation, stats);
-//        for (RoutingNode node : nodesSmallestToLargest) {
-//            logger.trace("Node: " + node.nodeId() + " -> " + averageAvailableBytes(stats.getNodesMap().get(node.nodeId()).fs()));
-//        }
+        for (RoutingNode node : nodesSmallestToLargest) {
+            logger.debug("Node: {} -> {} % used", node.nodeId(),
+                         (100 - averagePercentageFree(stats.getNodesMap().get(node.nodeId()).fs())));
+        }
 
-        RoutingNode largestNode = nodesSmallestToLargest[nodesSmallestToLargest.length - 1];
-        RoutingNode smallestNode = nodesSmallestToLargest[0];
-        double largestNodeSize = 100 - averagePercentageFree(stats.getNodesMap().get(largestNode.nodeId()).fs());
-        double smallestNodeSize = 100 - averagePercentageFree(stats.getNodesMap().get(smallestNode.nodeId()).fs());
+        RoutingNode largestNode = nodesSmallestToLargest[0];
+        RoutingNode smallestNode = nodesSmallestToLargest[nodesSmallestToLargest.length - 1];
+        double largestNodeUsedSize = 100 - averagePercentageFree(stats.getNodesMap().get(largestNode.nodeId()).fs());
+        double smallestNodeUsedSize = 100 - averagePercentageFree(stats.getNodesMap().get(smallestNode.nodeId()).fs());
 
-        double sizeDifference = largestNodeSize - smallestNodeSize;
+        double sizeDifference = largestNodeUsedSize - smallestNodeUsedSize;
 
-        logger.info("Checking size disparity: " + largestNode.nodeId() + " -> " +
-                smallestNode.nodeId() + " (" + sizeDifference + " >= " +
-                this.minimumSwapDifferencePercentage + ")");
+        logger.info("Checking size disparity: {}[{} % used] -> {}[{} % used] ({} >= {})",
+                    largestNode.nodeId(), largestNodeUsedSize,
+                    smallestNode.nodeId(), smallestNodeUsedSize,
+                    sizeDifference, this.minimumSwapDifferencePercentage);
 
         if (sizeDifference >= this.minimumSwapDifferencePercentage) {
             logger.info("Size disparity found, checking for swappable shards.");
@@ -316,25 +318,32 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                 return changed;
             }
 
-            logger.info("Found shards, large: " + largestShardAvailableForRelocation.shardId() +
-                        ", small: " + smallestShardAvailableForRelocation.shardId());
-
             // If we've gone through the list, and the 'larger' shard is
             // smaller than the 'smaller' shard, don't bother swapping
             long largeSize = shardSizes.get(largestShardAvailableForRelocation.shardId());
             long smallSize = shardSizes.get(smallestShardAvailableForRelocation.shardId());
+
+            logger.info("Swappable shards found.");
+
+            logger.info("large: {}[{} bytes], small: {}[{} bytes]",
+                        largestShardAvailableForRelocation, largeSize,
+                        smallestShardAvailableForRelocation, smallSize);
 
             if (largeSize == 0 || smallSize == 0) {
                 logger.warn("Unable to find shards to swap. [shard size 0?!]");
                 return changed;
             }
 
+            // check to make sure it's actually worth swapping shards, the size
+            // disparity should be large enough to make a difference
             double shardRelativeSize = (100.0 * smallSize / largeSize);
-            if (shardRelativeSize < this.minimumSwapShardRelativeDifferencePercentage) {
-                logger.info("Unable to find suitable shards to swap. [" + shardRelativeSize +
-                            " < " + this.minimumSwapShardRelativeDifferencePercentage + "]");
+            if (shardRelativeSize > this.minimumSwapShardRelativeDifferencePercentage) {
+                logger.info("Unable to find suitable shards to swap. Smallest shard {}% of large shard size, must be <= {}%",
+                            shardRelativeSize, this.minimumSwapShardRelativeDifferencePercentage);
                 return changed;
             }
+            logger.info("Small shard is {} % of large shard size, below swapping threshold of {} %.",
+                        shardRelativeSize, this.minimumSwapShardRelativeDifferencePercentage);
 
             // swap the two shards
             logger.info("Swapping ({}) and ({})",
@@ -360,6 +369,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             changed = true;
         }
 
+        logger.info("Finished shard swap. " + (changed ? "Swap performed." : "Swap skipped."));
         return changed;
     }
 
@@ -433,8 +443,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             public int compare(RoutingNode o1, RoutingNode o2) {
                 int c1 = nodeCounts.get(o1.nodeId());
                 int c2 = nodeCounts.get(o2.nodeId());
-                logger.trace("comparing " + o1.nodeId() + "[" + c1 + "]" +
-                             " to " + o2.nodeId() + "[" + c2 + "]");
+                logger.trace("comparing {}[{}] to {}[{}]", o1.nodeId(),
+                             o2.nodeId(), c2);
                 return (c1 - c2);
             }
         });
@@ -452,10 +462,10 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             public int compare(RoutingNode o1, RoutingNode o2) {
                 FsStats fs1 = nodeStats.getNodesMap().get(o1.nodeId()).fs();
                 FsStats fs2 = nodeStats.getNodesMap().get(o2.nodeId()).fs();
-                long avgAvailable1 = averageAvailableBytes(fs1);
-                long avgAvailable2 = averageAvailableBytes(fs2);
-                logger.info(o1.nodeId() + "[" + avgAvailable1 + "] vs. " +
-                            o2.nodeId() + "[" + avgAvailable2 + "]");
+                double avgAvailable1 = averagePercentageFree(fs1);
+                double avgAvailable2 = averagePercentageFree(fs2);
+                logger.trace("{}[{}%] vs {}[{}%]", o1.nodeId(), avgAvailable1,
+                             o2.nodeId(), avgAvailable2);
                 return (int)(avgAvailable1 - avgAvailable2);
             }
         });
