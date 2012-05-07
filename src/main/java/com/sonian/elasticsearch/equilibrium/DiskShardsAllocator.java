@@ -293,6 +293,10 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             MutableShardRouting largestShardAvailableForRelocation = null;
             MutableShardRouting smallestShardAvailableForRelocation = null;
 
+            for (MutableShardRouting shard : largestNodeShards) {
+                logger.debug("[large] shard {} => {}", shard.shardId(), shardSizes.get(shard.shardId()));
+            }
+
             // check if we can find a shard to relocate from the largest to
             // smallest node
             for (MutableShardRouting shard : largestNodeShards) {
@@ -303,6 +307,10 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                                  largestShardAvailableForRelocation);
                     break;
                 }
+            }
+
+            for (MutableShardRouting shard : smallestNodeShards) {
+                logger.debug("[small] shard {} => {}", shard.shardId(), shardSizes.get(shard.shardId()));
             }
 
             // check if we can find a shard to relocate from the smallest to
