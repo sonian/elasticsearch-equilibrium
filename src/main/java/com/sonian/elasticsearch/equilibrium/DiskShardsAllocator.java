@@ -588,7 +588,14 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         Collections.sort(shards, new Comparator<MutableShardRouting>() {
             @Override
             public int compare(MutableShardRouting msr1, MutableShardRouting msr2) {
-                return (int) (sizeMap.get(msr2) - sizeMap.get(msr1));
+                long sizeDiff = sizeMap.get(msr2) - sizeMap.get(msr1);
+                if (sizeDiff > 0) {
+                    return 1;
+                } if (sizeDiff == 0) {
+                    return 0;
+                } else {
+                    return -1;
+                }
             }
         });
         return shards;
