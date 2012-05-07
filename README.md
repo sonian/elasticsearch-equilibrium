@@ -6,7 +6,7 @@ In elasticsearch.yml:
 sonian.elasticsearch.equilibrium:
   enabled: true
   minimumAvailablePercentage: 20.0
-  minimumSwapDifferencePercentage: 20.0,
+  minimumSwapDifferencePercentage: 20.0
   minimumSwapShardRelativeDifferencePercentage: 50.0
 ```
 
