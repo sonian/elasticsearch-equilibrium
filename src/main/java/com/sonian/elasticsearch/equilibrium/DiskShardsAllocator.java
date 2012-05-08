@@ -70,9 +70,9 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         this.minimumAvailablePercentage = compSettings.getAsDouble("minimumAvailablePercentage", 20.0);
         // read in configurable difference before shards are swapped, defaults
         // to 20% difference
-        this.minimumSwapDifferencePercentage = compSettings.getAsDouble("minimumSwapDifferencePercentage", 20.0);
+        this.minimumSwapDifferencePercentage = compSettings.getAsDouble("minimumSwapDifferencePercentage", 5.0);
         // read in configurable difference between large and small shards to swap
-        this.minimumSwapShardRelativeDifferencePercentage =  compSettings.getAsDouble("minimumSwapShardRelativeDifferencePercentage", 50.0);
+        this.minimumSwapShardRelativeDifferencePercentage =  compSettings.getAsDouble("minimumSwapShardRelativeDifferencePercentage", 75.0);
     }
 
 
