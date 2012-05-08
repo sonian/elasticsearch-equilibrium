@@ -53,8 +53,6 @@ public class ClusterEqualizerService extends AbstractComponent {
                         return clusterState;
                     }
 
-                    // new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData())
-
                     RoutingAllocation.Result newRouting = new RoutingAllocation.Result(true,
                             new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()),
                             allocation.explanation());

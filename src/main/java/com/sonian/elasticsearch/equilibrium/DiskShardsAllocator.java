@@ -32,7 +32,10 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 /**
  * DiskShardsAllocator is a copy of the stock-ES EvenCountShardsAllocator,
  * but checks (in addition) that nodes are not above a certain threshold,
- * and refuses to relocate shards to them if they have disk usage above this
+ * and refuses to relocate shards to them if they have disk usage above this.
+ *
+ * In addition, it provides the shardSwap method, to swap shards between an
+ * overloaded and underloaded node.
  *
  * @author dakrone
  */
@@ -71,7 +74,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         // read in configurable difference before shards are swapped, defaults
         // to 20% difference
         this.minimumSwapDifferencePercentage = compSettings.getAsDouble("minimumSwapDifferencePercentage", 5.0);
-        // read in configurable difference between large and small shards to swap
+        // read in configurable difference between large and small shards
+        // to swap
         this.minimumSwapShardRelativeDifferencePercentage =  compSettings.getAsDouble("minimumSwapShardRelativeDifferencePercentage", 75.0);
     }
 
@@ -138,8 +142,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                     if (numberOfShardsToAllocate <= 0) {
                         continue;
                     }
-                    logger.trace("Need " + numberOfShardsToAllocate + " shards on " + node.nodeId() +
-                                 " to reach the average shard count (" + avgShardCount + ")");
+                    logger.trace("Need {} shards on {} to reach the average shards count ({})",
+                                 numberOfShardsToAllocate, node.nodeId(), avgShardCount);
 
                     changed = true;
                     node.add(shard);
