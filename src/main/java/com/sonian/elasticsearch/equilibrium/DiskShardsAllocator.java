@@ -297,8 +297,10 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             MutableShardRouting largestShardAvailableForRelocation = null;
             MutableShardRouting smallestShardAvailableForRelocation = null;
 
-            for (MutableShardRouting shard : largestNodeShards) {
-                logger.trace("[large] shard {} => {}", shard.shardId(), shardSizes.get(shard.shardId()));
+            if (logger.isTraceEnabled()) {
+                for (MutableShardRouting shard : largestNodeShards) {
+                    logger.trace("[large] shard {} => {}", shard.shardId(), shardSizes.get(shard.shardId()));
+                }
             }
 
             // check if we can find a shard to relocate from the largest to
@@ -313,8 +315,10 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                 }
             }
 
-            for (MutableShardRouting shard : smallestNodeShards) {
-                logger.trace("[small] shard {} => {}", shard.shardId(), shardSizes.get(shard.shardId()));
+            if (logger.isTraceEnabled()) {
+                for (MutableShardRouting shard : smallestNodeShards) {
+                    logger.trace("[small] shard {} => {}", shard.shardId(), shardSizes.get(shard.shardId()));
+                }
             }
 
             // check if we can find a shard to relocate from the smallest to
@@ -471,10 +475,14 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     private RoutingNode[] sortedNodesByFreeSpaceLeastToHigh(RoutingAllocation allocation,
                                                             final NodesStatsResponse nodeStats) {
         RoutingNode[] nodes = allocation.routingNodes().nodesToShards().values().toArray(new RoutingNode[allocation.routingNodes().nodesToShards().values().size()]);
-        for (RoutingNode node : nodes) {
-            logger.trace("node: {} -> {}", node.nodeId(),
-                         averageAvailableBytes(nodeStats.getNodesMap().get(node.nodeId()).fs()));
+
+        if (logger.isTraceEnabled()) {
+            for (RoutingNode node : nodes) {
+                logger.trace("node: {} -> {}", node.nodeId(),
+                             averageAvailableBytes(nodeStats.getNodesMap().get(node.nodeId()).fs()));
+            }
         }
+
         Arrays.sort(nodes, new Comparator<RoutingNode>() {
             @Override
             public int compare(RoutingNode o1, RoutingNode o2) {
@@ -495,10 +503,14 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                 }
             }
         });
-        for (RoutingNode node : nodes) {
-            logger.trace("SortedNode: {} -> {}", node.nodeId(),
-                         averagePercentageFree(nodeStats.getNodesMap().get(node.nodeId()).fs()));
+
+        if (logger.isTraceEnabled()) {
+            for (RoutingNode node : nodes) {
+                logger.trace("SortedNode: {} -> {}", node.nodeId(),
+                             averagePercentageFree(nodeStats.getNodesMap().get(node.nodeId()).fs()));
+            }
         }
+
         return nodes;
 
     }
