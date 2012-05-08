@@ -294,7 +294,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             MutableShardRouting smallestShardAvailableForRelocation = null;
 
             for (MutableShardRouting shard : largestNodeShards) {
-                logger.debug("[large] shard {} => {}", shard.shardId(), shardSizes.get(shard.shardId()));
+                logger.trace("[large] shard {} => {}", shard.shardId(), shardSizes.get(shard.shardId()));
             }
 
             // check if we can find a shard to relocate from the largest to
@@ -310,7 +310,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             }
 
             for (MutableShardRouting shard : smallestNodeShards) {
-                logger.debug("[small] shard {} => {}", shard.shardId(), shardSizes.get(shard.shardId()));
+                logger.trace("[small] shard {} => {}", shard.shardId(), shardSizes.get(shard.shardId()));
             }
 
             // check if we can find a shard to relocate from the smallest to
@@ -468,7 +468,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                                                             final NodesStatsResponse nodeStats) {
         RoutingNode[] nodes = allocation.routingNodes().nodesToShards().values().toArray(new RoutingNode[allocation.routingNodes().nodesToShards().values().size()]);
         for (RoutingNode node : nodes) {
-            logger.trace("node: " + node.nodeId() + " -> " + averageAvailableBytes(nodeStats.getNodesMap().get(node.nodeId()).fs()));
+            logger.trace("node: {} -> {}", node.nodeId(),
+                         averageAvailableBytes(nodeStats.getNodesMap().get(node.nodeId()).fs()));
         }
         Arrays.sort(nodes, new Comparator<RoutingNode>() {
             @Override
@@ -477,9 +478,17 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                 FsStats fs2 = nodeStats.getNodesMap().get(o2.nodeId()).fs();
                 double avgAvailable1 = averagePercentageFree(fs1);
                 double avgAvailable2 = averagePercentageFree(fs2);
-                logger.trace("{}[{}%] vs {}[{}%]", o1.nodeId(), avgAvailable1,
+                logger.trace("{}[{}%] vs {}[{}%]",
+                             o1.nodeId(), avgAvailable1,
                              o2.nodeId(), avgAvailable2);
-                return (int)(avgAvailable1 - avgAvailable2);
+                double sizeDiff = avgAvailable1 - avgAvailable2;
+                if (sizeDiff > 0) {
+                    return 1;
+                } if (sizeDiff == 0) {
+                    return 0;
+                } else {
+                    return -1;
+                }
             }
         });
         for (RoutingNode node : nodes) {
@@ -613,19 +622,18 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     private boolean enoughDiskForShard(MutableShardRouting shard, RoutingNode routingNode, NodesStatsResponse nodeStats) {
         boolean enoughSpace = true;
         
-        logger.info("enoughDiskForShard on " + routingNode.nodeId() + " for: " + shard.shardId());
+        logger.info("enoughDiskForShard on {} for: {}", routingNode.nodeId(), shard.shardId());
 
         FsStats fs = nodeStats.getNodesMap().get(routingNode.nodeId()).fs();
         Iterator<FsStats.Info> i = fs.iterator();
         while (i.hasNext()) {
             FsStats.Info stats = i.next();
             double percentFree = ((double)stats.available().bytes() / (double)stats.total().bytes()) * 100.0;
-            logger.info("Space: " + stats.available().bytes() + " bytes available, " + stats.total().bytes() +
-                        " total bytes. Percent free: [" + percentFree + "]");
+            logger.info("Space: {} bytes available, {} total bytes. Percent free: [{} %]",
+                        stats.available().bytes(), stats.total().bytes(), percentFree);
             if (percentFree < this.minimumAvailablePercentage) {
-                logger.info("Throttling shard allocation due to excessive disk use " +
-                        "(" + percentFree + "< " + this.minimumAvailablePercentage +
-                        "% free) on " + routingNode.nodeId());
+                logger.info("Throttling shard allocation due to excessive disk use ({} < {} % free) on {}",
+                            percentFree, this.minimumAvailablePercentage, routingNode.nodeId());
                 enoughSpace = false;
             }
         }
