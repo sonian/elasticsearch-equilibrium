@@ -287,6 +287,13 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             logger.info("Size disparity found, checking for swappable shards.");
             HashMap<ShardId, Long> shardSizes = nodeShardStats();
 
+            // If unable to retrieve shard sizes, abort quickly because
+            // something is probably wrong with the cluster
+            if (shardSizes == null) {
+                logger.warn("Unable to retrieve shard sizes, aborting shard swap.");
+                return changed;
+            }
+
             // generate a list of shards on the largest node, largest shard first
             List<MutableShardRouting> largestNodeShards = sortedStartedShardsOnNodeLargestToSmallest(largestNode, shardSizes);
 
@@ -576,7 +583,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
 
     /**
-     * Retrieves the shard sizes for all shards in the cluster, waits 30
+     * Retrieves the shard sizes for all shards in the cluster, waits 5
      * seconds for a response from the cluster nodes
      *
      * @return a Map of ShardId to size in bytes of the shard
@@ -587,7 +594,13 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         IndicesStatsRequest request = new IndicesStatsRequest();
         request.clear();
         request.store(true);
-        IndicesStats resp = indicesStatsAction.execute(request).actionGet(30000);
+        IndicesStats resp;
+        try {
+            resp = indicesStatsAction.execute(request).actionGet(5000);
+        } catch (Exception e) {
+            logger.error("Exception getting shard stats for each node.", e);
+            return null;
+        }
         for (ShardStats stats : resp.getShards()) {
             shardSizes.put(stats.getShardRouting().shardId(), stats.stats().store().getSizeInBytes());
         }
