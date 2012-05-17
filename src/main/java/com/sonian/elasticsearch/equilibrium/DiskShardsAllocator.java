@@ -1,12 +1,6 @@
 package com.sonian.elasticsearch.equilibrium;
 
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
-import org.elasticsearch.action.admin.indices.stats.IndicesStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -15,12 +9,10 @@ import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.monitor.fs.FsStats;
 
@@ -41,12 +33,8 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
  */
 public class DiskShardsAllocator extends AbstractComponent implements ShardsAllocator {
 
-    // action used to gather FsStats for all the nodes in the cluster, to check
-    // their disk usage
-    private final TransportNodesStatsAction nodesStatsAction;
-
-    // action used to gather shard sizes for all nodes in the cluster
-    private final TransportIndicesStatsAction indicesStatsAction;
+    // helper providing shard size and fsStats options
+    private final NodeInfoHelper nodeInfoHelper;
 
     // the minimum percentage of free disk space before we stop sending shards
     // to a node
@@ -60,11 +48,9 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     private final double minimumSwapShardRelativeDifferencePercentage;
 
     @Inject
-    public DiskShardsAllocator(Settings settings, TransportNodesStatsAction nodesStatsAction,
-                               TransportIndicesStatsAction indicesStatusAction) {
+    public DiskShardsAllocator(Settings settings, NodeInfoHelper nodeInfoHelper) {
         super(settings);
-        this.nodesStatsAction = nodesStatsAction;
-        this.indicesStatsAction = indicesStatusAction;
+        this.nodeInfoHelper = nodeInfoHelper;
 
         Settings compSettings = settings.getComponentSettings(this.getClass());
 
@@ -115,7 +101,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
         boolean changed = false;
         RoutingNodes routingNodes = allocation.routingNodes();
-        NodesStatsResponse stats = nodeFsStats();
+        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
 
         RoutingNode[] nodes = sortedNodesByShardCountLeastToHigh(allocation);
 
@@ -188,7 +174,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             return false;
         }
 
-        NodesStatsResponse stats = nodeFsStats();
+        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
         RoutingNode[] sortedNodesLeastToHigh = sortedNodesByShardCountLeastToHigh(allocation);
         int lowIndex = 0;
         int highIndex = sortedNodesLeastToHigh.length - 1;
@@ -264,7 +250,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         }
 
         logger.info("Initiating shard swap check.");
-        NodesStatsResponse stats = nodeFsStats();
+        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
         RoutingNode[] nodesSmallestToLargest = sortedNodesByFreeSpaceLeastToHigh(allocation, stats);
         for (RoutingNode node : nodesSmallestToLargest) {
             logger.debug("Node: {} -> {} % used", node.nodeId(),
@@ -285,7 +271,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
         if (sizeDifference >= this.minimumSwapDifferencePercentage) {
             logger.info("Size disparity found, checking for swappable shards.");
-            HashMap<ShardId, Long> shardSizes = nodeShardStats();
+            HashMap<ShardId, Long> shardSizes = this.nodeInfoHelper.nodeShardStats();
 
             // If unable to retrieve shard sizes, abort quickly because
             // something is probably wrong with the cluster
@@ -420,7 +406,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         if (allocation.nodes().getSize() == 0) {
             return false;
         }
-        NodesStatsResponse stats = nodeFsStats();
+        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
         RoutingNode[] sortedNodesLeastToHigh = sortedNodesByShardCountLeastToHigh(allocation);
 
         for (RoutingNode nodeToCheck : sortedNodesLeastToHigh) {
@@ -562,49 +548,6 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         double avg = (totalPercentages / statNum);
         logger.trace("Average percentage free: " + avg);
         return avg;
-    }
-
-
-    /**
-     * Return the FS stats for all nodes, times out if no responses are
-     * returned in 10 seconds
-     *
-     * @return NodesStatsResponse for the FsStats for the cluster
-     */
-    private NodesStatsResponse nodeFsStats() {
-        logger.trace("nodeFsStats");
-        NodesStatsRequest request = new NodesStatsRequest(Strings.EMPTY_ARRAY);
-        request.timeout(TimeValue.timeValueMillis(10000));
-        request.clear();
-        request.fs(true);
-        NodesStatsResponse resp = nodesStatsAction.execute(request).actionGet(20000);
-        return resp;
-    }
-
-
-    /**
-     * Retrieves the shard sizes for all shards in the cluster, waits 5
-     * seconds for a response from the cluster nodes
-     *
-     * @return a Map of ShardId to size in bytes of the shard
-     */
-    private HashMap<ShardId, Long> nodeShardStats() {
-        logger.trace("nodeShardStats");
-        final HashMap<ShardId, Long> shardSizes = new HashMap<ShardId, Long>();
-        IndicesStatsRequest request = new IndicesStatsRequest();
-        request.clear();
-        request.store(true);
-        IndicesStats resp;
-        try {
-            resp = indicesStatsAction.execute(request).actionGet(5000);
-        } catch (Exception e) {
-            logger.error("Exception getting shard stats for each node.", e);
-            return null;
-        }
-        for (ShardStats stats : resp.getShards()) {
-            shardSizes.put(stats.getShardRouting().shardId(), stats.stats().store().getSizeInBytes());
-        }
-        return shardSizes;
     }
 
 
