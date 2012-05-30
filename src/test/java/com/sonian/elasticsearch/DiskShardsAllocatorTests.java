@@ -6,17 +6,26 @@ import com.sonian.elasticsearch.equilibrium.NodeInfoHelper;
 import com.sonian.elasticsearch.tests.AbstractJettyHttpServerTests;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.monitor.fs.FsStats;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.Test;
 
 import java.util.HashMap;
 import java.util.Iterator;
 
+import static org.easymock.EasyMock.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 /**
@@ -24,6 +33,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
  */
 public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
 
+
+    // Helpers for tests
     public void createIndex(String id, String name, int numberOfShards, int numberOfRelicas) {
         Client c = client(id);
         c.admin().indices().prepareCreate(name)
@@ -59,6 +70,24 @@ public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
         return ClusterHealthStatus.RED == getStatus(id);
     }
 
+    public FsStats makeFakeFsStats(long total, long avail) {
+        FsStats fs = createMock(FsStats.class);
+        FsStats.Info[] infos = new FsStats.Info[1];
+
+        FsStats.Info fsInfo1 = createMock(FsStats.Info.class);
+        expect(fsInfo1.total()).andStubReturn(new ByteSizeValue(total));
+        expect(fsInfo1.available()).andStubReturn(new ByteSizeValue(avail));
+
+        infos[0] = fsInfo1;
+        expect(fs.iterator()).andStubReturn(Iterators.forArray(infos));
+
+        replay(fs, fsInfo1);
+
+        return fs;
+    }
+
+
+    // Testing functions
     @AfterTest
     public void cleanUp() {
         closeAllNodes();
@@ -82,7 +111,7 @@ public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
                    dsa.averagePercentageFree(resp.getNodes()[0].fs()) > 0.0);
 
         assertThat("averageAvailableBytes is above 100 bytes",
-                   dsa.averageAvailableBytes(resp.getNodes()[0].fs()) > 100.0);
+                dsa.averageAvailableBytes(resp.getNodes()[0].fs()) > 100.0);
     }
 
     @Test
@@ -105,6 +134,50 @@ public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
         deleteIndex("1", "i1");
         deleteIndex("1", "i2");
     }
+
+    @Test
+    public void unitTestEnoughDiskForShard() {
+        startNode("1");
+
+        DiskShardsAllocator dsa = instance("1", DiskShardsAllocator.class);
+
+        MutableShardRouting msr = new MutableShardRouting("i1", 0, "node1", true,
+                                                          ShardRoutingState.UNASSIGNED, 0);
+
+        DiscoveryNode dn = new DiscoveryNode("node1", "node1", null,
+                                             new HashMap<String, String>());
+        RoutingNode node = new RoutingNode("node1", dn);
+
+        FsStats fakeSmallFs = makeFakeFsStats(1000, 10);
+        FsStats fakeLargeFs = makeFakeFsStats(1000, 999);
+
+        HashMap<String, NodeStats> fakeSmallStats = new HashMap<String, NodeStats>();
+        fakeSmallStats.put("node1", new NodeStats(dn, 0, "hostname", null,
+                           null, null, null, null, null, fakeSmallFs, null, null));
+
+        HashMap<String, NodeStats> fakeLargeStats = new HashMap<String, NodeStats>();
+        fakeLargeStats.put("node1", new NodeStats(dn, 0, "hostname", null,
+                           null, null, null, null, null, fakeLargeFs, null, null));
+
+        NodesStatsResponse smallNSR = createMock(NodesStatsResponse.class);
+        expect(smallNSR.getNodesMap()).andStubReturn(fakeSmallStats);
+        replay(smallNSR);
+
+        NodesStatsResponse largeNSR = createMock(NodesStatsResponse.class);
+        expect(largeNSR.getNodesMap()).andStubReturn(fakeLargeStats);
+        replay(largeNSR);
+
+        boolean resp1 = dsa.enoughDiskForShard(msr, node, smallNSR);
+        boolean resp2 = dsa.enoughDiskForShard(msr, node, largeNSR);
+
+        assertThat("we don't have enough disk on the small node", resp1 == false);
+        assertThat("we do have enough disk on the large node", resp2 == true);
+
+    }
+
+
+    // These tests are commented out because I might revisit them as
+    // integration tests one day
 
     //@Test
     public void testEnoughDiskForShard() {

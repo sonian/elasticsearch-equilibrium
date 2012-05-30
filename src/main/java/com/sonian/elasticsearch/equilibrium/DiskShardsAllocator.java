@@ -1,5 +1,6 @@
 package com.sonian.elasticsearch.equilibrium;
 
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -584,6 +585,27 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
 
     /**
+     * Takes a FsStats object and returns the list of percentages of Free disk for the filesystem stats
+     *
+     * @param fs FsStats object to return percentages for
+     * @return a List of Doubles representing percentage free values
+     */
+    public List<Double> percentagesFree(FsStats fs) {
+        List<Double> results = new ArrayList<Double>();
+        Iterator<FsStats.Info> i = fs.iterator();
+        while (i.hasNext()) {
+            FsStats.Info stats = i.next();
+            double percentFree = ((double)stats.available().bytes() / (double)stats.total().bytes()) * 100.0;
+            logger.info("Space: {} bytes available, {} total bytes. Percent free: [{} %]",
+                        stats.available().bytes(), stats.total().bytes(), percentFree);
+            results.add(percentFree);
+        }
+
+        return results;
+    }
+
+
+    /**
      * Check if there is enough disk space for more shards on the node
      *
      * @param shard shard that is being checked
@@ -591,21 +613,20 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      * @param nodeStats the NodesStatsResponse for FS stats of the cluster
      * @return true if the node is below the threshold, false if not
      */
-    private boolean enoughDiskForShard(MutableShardRouting shard, RoutingNode routingNode, NodesStatsResponse nodeStats) {
+    public boolean enoughDiskForShard(MutableShardRouting shard, RoutingNode routingNode, NodesStatsResponse nodeStats) {
         boolean enoughSpace = true;
         
         logger.info("enoughDiskForShard on {} for: {}", routingNode.nodeId(), shard.shardId());
 
-        FsStats fs = nodeStats.getNodesMap().get(routingNode.nodeId()).fs();
-        Iterator<FsStats.Info> i = fs.iterator();
-        while (i.hasNext()) {
-            FsStats.Info stats = i.next();
-            double percentFree = ((double)stats.available().bytes() / (double)stats.total().bytes()) * 100.0;
-            logger.info("Space: {} bytes available, {} total bytes. Percent free: [{} %]",
-                        stats.available().bytes(), stats.total().bytes(), percentFree);
-            if (percentFree < this.minimumAvailablePercentage) {
+        String nodeId = routingNode.nodeId();
+        Map<String, NodeStats> nodeStatsMap = nodeStats.getNodesMap();
+        NodeStats ns = nodeStatsMap.get(nodeId);
+        FsStats fs = ns.fs();
+        List<Double> percents = percentagesFree(fs);
+        for (Double p : percents) {
+            if (p < this.minimumAvailablePercentage) {
                 logger.info("Throttling shard allocation due to excessive disk use ({} < {} % free) on {}",
-                            percentFree, this.minimumAvailablePercentage, routingNode.nodeId());
+                            p, this.minimumAvailablePercentage, nodeId);
                 enoughSpace = false;
             }
         }
