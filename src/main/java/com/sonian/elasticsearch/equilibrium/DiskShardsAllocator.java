@@ -514,7 +514,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      * @param fs object to average free bytes for
      * @return the average available bytes for all mount points
      */
-    private long averageAvailableBytes(FsStats fs) {
+    public long averageAvailableBytes(FsStats fs) {
         long totalAvail = 0;
         int statNum = 0;
         Iterator<FsStats.Info> i = fs.iterator();
@@ -534,7 +534,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      * @param fs object to average free bytes for
      * @return the average available bytes for all mount points
      */
-    private double averagePercentageFree(FsStats fs) {
+    public double averagePercentageFree(FsStats fs) {
         double totalPercentages = 0;
         int statNum = 0;
         Iterator<FsStats.Info> i = fs.iterator();
