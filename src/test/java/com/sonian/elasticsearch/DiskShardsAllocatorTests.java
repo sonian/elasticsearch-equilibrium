@@ -10,7 +10,12 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.shard.ShardId;
+import org.testng.annotations.AfterTest;
 import org.testng.annotations.Test;
+
+import java.util.HashMap;
+import java.util.Iterator;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 
@@ -54,11 +59,15 @@ public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
         return ClusterHealthStatus.RED == getStatus(id);
     }
 
+    @AfterTest
+    public void cleanUp() {
+        closeAllNodes();
+    }
+
     @Test void injectedDiskShardAllocator() {
         startNode("1");
         ShardsAllocator sa = instance("1", ShardsAllocator.class);
         assertThat("DiskShardsAllocator was injected", sa instanceof DiskShardsAllocator);
-        closeNode("1");
     }
 
     @Test
@@ -74,8 +83,27 @@ public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
 
         assertThat("averageAvailableBytes is above 100 bytes",
                    dsa.averageAvailableBytes(resp.getNodes()[0].fs()) > 100.0);
+    }
 
-        closeNode("1");
+    @Test
+    public void unitTestNodeShardStats() {
+        startNode("1");
+
+        createIndex("1", "i1", 2, 0);
+        createIndex("1", "i2", 3, 0);
+
+        NodeInfoHelper helper = instance("1", NodeInfoHelper.class);
+        HashMap<ShardId, Long> shardSizes = helper.nodeShardStats();
+
+        assertThat("there are sizes for all shards", shardSizes.size() == 5);
+        Iterator<Long> i = shardSizes.values().iterator();
+        while (i.hasNext()) {
+            Long size = i.next();
+            assertThat("each shard has a positive size", size > 0.0);
+        }
+
+        deleteIndex("1", "i1");
+        deleteIndex("1", "i2");
     }
 
     //@Test
@@ -100,8 +128,6 @@ public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
 
         deleteIndex("1", "i1");
         deleteIndex("1", "i2");
-
-        closeNode("1");
     }
 
     //@Test
@@ -138,7 +164,5 @@ public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
         deleteIndex("1", "i1");
         deleteIndex("1", "i2");
         deleteIndex("1", "i3");
-
-        closeAllNodes();
     }
 }
