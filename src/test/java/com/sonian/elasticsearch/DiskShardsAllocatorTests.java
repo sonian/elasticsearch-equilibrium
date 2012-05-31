@@ -101,9 +101,8 @@ public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
 
     @Test
     public void unitTestNodeFsStats() {
-        startNode("1");
         NodeInfoHelper helper = instance("1", NodeInfoHelper.class);
-        DiskShardsAllocator dsa = instance("1", DiskShardsAllocator.class);
+        DiskShardsAllocator dsa = new DiskShardsAllocator(ImmutableSettings.settingsBuilder().build(), helper);
         NodesStatsResponse resp = helper.nodeFsStats();
 
         assertThat("averagePercentageFree is always between 0 and 100 percent",
@@ -137,9 +136,7 @@ public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
 
     @Test
     public void unitTestEnoughDiskForShard() {
-        startNode("1");
-
-        DiskShardsAllocator dsa = instance("1", DiskShardsAllocator.class);
+        DiskShardsAllocator dsa = new DiskShardsAllocator(ImmutableSettings.settingsBuilder().build(), null);
 
         MutableShardRouting msr = new MutableShardRouting("i1", 0, "node1", true,
                                                           ShardRoutingState.UNASSIGNED, 0);
