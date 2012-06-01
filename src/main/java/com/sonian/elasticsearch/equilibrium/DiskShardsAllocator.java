@@ -49,8 +49,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     private final double minimumSwapShardRelativeDifferencePercentage;
 
     // configurable timeouts for shard/node status calls
-    private final Long shardStatsTimeout;
-    private final Long nodeFsStatsTimeout;
+    private final long shardStatsTimeout;
+    private final long nodeFsStatsTimeout;
 
     @Inject
     public DiskShardsAllocator(Settings settings, NodeInfoHelper nodeInfoHelper) {
@@ -69,9 +69,10 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         // to swap
         this.minimumSwapShardRelativeDifferencePercentage =  compSettings.getAsDouble("minimumSwapShardRelativeDifferencePercentage", 75.0);
 
-        // read in timeout values for stats calls
-        this.shardStatsTimeout = compSettings.getAsLong("shardStatsTimeout", null);
-        this.nodeFsStatsTimeout = compSettings.getAsLong("nodeFsStatsTimeout", null);
+        // read in timeout values for stats calls, defaulting to 15 seconds
+        // for shardStats and 10 minutes for FsStats
+        this.shardStatsTimeout = compSettings.getAsLong("shardStatsTimeout", (long)15000);
+        this.nodeFsStatsTimeout = compSettings.getAsLong("nodeFsStatsTimeout", (long)(10 * 60 * 1000));
     }
 
 

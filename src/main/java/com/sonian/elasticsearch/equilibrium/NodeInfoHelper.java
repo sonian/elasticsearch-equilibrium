@@ -39,16 +39,14 @@ public class NodeInfoHelper extends AbstractComponent {
 
 
     /**
-     * Return the FS stats for all nodes, returning null if timed out.
-     * Defaults to a timeout of 10 minutes if timeout parameter is null.
+     * Return the FS stats for all nodes, returning null if timed out or an
+     * exception is caught.
      *
      * @return NodesStatsResponse for the FsStats for the cluster
      */
-    public NodesStatsResponse nodeFsStats(Long maybeTimeout) {
+    public NodesStatsResponse nodeFsStats(long timeout) {
         logger.trace("nodeFsStats");
         NodesStatsResponse resp;
-
-        long timeout = (maybeTimeout == null) ? maybeTimeout : (10 * 60 * 1000);
 
         try {
             NodesStatsRequest request = new NodesStatsRequest(Strings.EMPTY_ARRAY);
@@ -66,20 +64,17 @@ public class NodeInfoHelper extends AbstractComponent {
 
     /**
      * Retrieves the shard sizes for all shards in the cluster, returns null
-     * if an exception occurs. Defaults to a timeout of 15 seconds if the
-     * timeout parameter is not set
+     * if an exception occurs.
      *
      * @return a Map of ShardId to size in bytes of the shard
      */
-    public HashMap<ShardId, Long> nodeShardStats(Long maybeTimeout) {
+    public HashMap<ShardId, Long> nodeShardStats(long timeout) {
         logger.trace("nodeShardStats");
         final HashMap<ShardId, Long> shardSizes = new HashMap<ShardId, Long>();
         IndicesStatsRequest request = new IndicesStatsRequest();
         request.clear();
         request.store(true);
         IndicesStats resp;
-
-        long timeout = (maybeTimeout == null) ? maybeTimeout : 15000;
 
         try {
             resp = indicesStatsAction.execute(request).actionGet(timeout);

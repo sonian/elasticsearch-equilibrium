@@ -50,7 +50,7 @@ public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
     public void unitTestNodeFsStats() {
         NodeInfoHelper helper = tu.instance("1", NodeInfoHelper.class);
         DiskShardsAllocator dsa = new DiskShardsAllocator(ImmutableSettings.settingsBuilder().build(), helper);
-        NodesStatsResponse resp = helper.nodeFsStats();
+        NodesStatsResponse resp = helper.nodeFsStats(10000);
 
         assertThat("averagePercentageFree is always between 0 and 100 percent",
                    dsa.averagePercentageFree(resp.getNodes()[0].fs()) < 100.0 &&
@@ -68,7 +68,7 @@ public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
         tu.createIndex("1", "i2", 3, 0);
 
         NodeInfoHelper helper = tu.instance("1", NodeInfoHelper.class);
-        HashMap<ShardId, Long> shardSizes = helper.nodeShardStats();
+        HashMap<ShardId, Long> shardSizes = helper.nodeShardStats(10000);
 
         assertThat("there are sizes for all shards", shardSizes.size() == 5);
         Iterator<Long> i = shardSizes.values().iterator();
