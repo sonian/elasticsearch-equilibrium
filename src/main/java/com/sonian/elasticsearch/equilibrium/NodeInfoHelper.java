@@ -40,23 +40,29 @@ public class NodeInfoHelper extends AbstractComponent {
 
     /**
      * Return the FS stats for all nodes, times out if no responses are
-     * returned in 10 seconds
+     * returned in 10 minutes, returning null if timed out
      *
      * @return NodesStatsResponse for the FsStats for the cluster
      */
     public NodesStatsResponse nodeFsStats() {
         logger.trace("nodeFsStats");
-        NodesStatsRequest request = new NodesStatsRequest(Strings.EMPTY_ARRAY);
-        request.timeout(TimeValue.timeValueMillis(10000));
-        request.clear();
-        request.fs(true);
-        NodesStatsResponse resp = nodesStatsAction.execute(request).actionGet(20000);
+        NodesStatsResponse resp;
+        try {
+            NodesStatsRequest request = new NodesStatsRequest(Strings.EMPTY_ARRAY);
+            request.timeout(TimeValue.timeValueMillis(10 * 60 * 1000)); // 10 minutes
+            request.clear();
+            request.fs(true);
+            resp = nodesStatsAction.execute(request).actionGet(20000);
+        } catch (Exception e) {
+            logger.error("Exception getting nodeFsStats for all nodes.", e);
+            return null;
+        }
         return resp;
     }
 
 
     /**
-     * Retrieves the shard sizes for all shards in the cluster, waits 5
+     * Retrieves the shard sizes for all shards in the cluster, waits 15
      * seconds for a response from the cluster nodes
      *
      * @return a Map of ShardId to size in bytes of the shard
@@ -69,7 +75,7 @@ public class NodeInfoHelper extends AbstractComponent {
         request.store(true);
         IndicesStats resp;
         try {
-            resp = indicesStatsAction.execute(request).actionGet(5000);
+            resp = indicesStatsAction.execute(request).actionGet(15000);
         } catch (Exception e) {
             logger.error("Exception getting shard stats for each node.", e);
             return null;
