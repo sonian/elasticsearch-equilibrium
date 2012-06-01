@@ -39,17 +39,20 @@ public class NodeInfoHelper extends AbstractComponent {
 
 
     /**
-     * Return the FS stats for all nodes, times out if no responses are
-     * returned in 10 minutes, returning null if timed out
+     * Return the FS stats for all nodes, returning null if timed out.
+     * Defaults to a timeout of 10 minutes if timeout parameter is null.
      *
      * @return NodesStatsResponse for the FsStats for the cluster
      */
-    public NodesStatsResponse nodeFsStats() {
+    public NodesStatsResponse nodeFsStats(Long maybeTimeout) {
         logger.trace("nodeFsStats");
         NodesStatsResponse resp;
+
+        long timeout = (maybeTimeout == null) ? maybeTimeout : (10 * 60 * 1000);
+
         try {
             NodesStatsRequest request = new NodesStatsRequest(Strings.EMPTY_ARRAY);
-            request.timeout(TimeValue.timeValueMillis(10 * 60 * 1000)); // 10 minutes
+            request.timeout(TimeValue.timeValueMillis(timeout));
             request.clear();
             request.fs(true);
             resp = nodesStatsAction.execute(request).actionGet(20000);
@@ -62,20 +65,24 @@ public class NodeInfoHelper extends AbstractComponent {
 
 
     /**
-     * Retrieves the shard sizes for all shards in the cluster, waits 15
-     * seconds for a response from the cluster nodes
+     * Retrieves the shard sizes for all shards in the cluster, returns null
+     * if an exception occurs. Defaults to a timeout of 15 seconds if the
+     * timeout parameter is not set
      *
      * @return a Map of ShardId to size in bytes of the shard
      */
-    public HashMap<ShardId, Long> nodeShardStats() {
+    public HashMap<ShardId, Long> nodeShardStats(Long maybeTimeout) {
         logger.trace("nodeShardStats");
         final HashMap<ShardId, Long> shardSizes = new HashMap<ShardId, Long>();
         IndicesStatsRequest request = new IndicesStatsRequest();
         request.clear();
         request.store(true);
         IndicesStats resp;
+
+        long timeout = (maybeTimeout == null) ? maybeTimeout : 15000;
+
         try {
-            resp = indicesStatsAction.execute(request).actionGet(15000);
+            resp = indicesStatsAction.execute(request).actionGet(timeout);
         } catch (Exception e) {
             logger.error("Exception getting shard stats for each node.", e);
             return null;
