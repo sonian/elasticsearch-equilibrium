@@ -14,6 +14,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.monitor.fs.FsStats;
 
@@ -48,10 +49,6 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     // configurable difference between large and small shards to swap
     private final double minimumSwapShardRelativeDifferencePercentage;
 
-    // configurable timeouts for shard/node status calls
-    private final long shardStatsTimeout;
-    private final long nodeFsStatsTimeout;
-
     @Inject
     public DiskShardsAllocator(Settings settings, NodeInfoHelper nodeInfoHelper) {
         super(settings);
@@ -68,11 +65,6 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         // read in configurable difference between large and small shards
         // to swap
         this.minimumSwapShardRelativeDifferencePercentage =  compSettings.getAsDouble("minimumSwapShardRelativeDifferencePercentage", 75.0);
-
-        // read in timeout values for stats calls, defaulting to 15 seconds
-        // for shardStats and 10 minutes for FsStats
-        this.shardStatsTimeout = compSettings.getAsLong("shardStatsTimeout", (long)15000);
-        this.nodeFsStatsTimeout = compSettings.getAsLong("nodeFsStatsTimeout", (long)(10 * 60 * 1000));
     }
 
 
@@ -111,7 +103,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
         boolean changed = false;
         RoutingNodes routingNodes = allocation.routingNodes();
-        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats(nodeFsStatsTimeout);
+        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
         if (stats == null) {
             logger.warn("Unable to determine nodeFsStats, aborting allocation.");
             return false;
@@ -188,7 +180,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             return false;
         }
 
-        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats(nodeFsStatsTimeout);
+        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
         if (stats == null) {
             logger.warn("Unable to determine nodeFsStats, aborting rebalance.");
             return false;
@@ -269,7 +261,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         }
 
         logger.info("Initiating shard swap check.");
-        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats(nodeFsStatsTimeout);
+        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
         if (stats == null) {
             logger.warn("Unable to determine nodeFsStats, aborting shardSwap.");
             return false;
@@ -295,7 +287,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
         if (sizeDifference >= this.minimumSwapDifferencePercentage) {
             logger.info("Size disparity found, checking for swappable shards.");
-            HashMap<ShardId, Long> shardSizes = this.nodeInfoHelper.nodeShardStats(shardStatsTimeout);
+            HashMap<ShardId, Long> shardSizes = this.nodeInfoHelper.nodeShardStats();
 
             // If unable to retrieve shard sizes, abort quickly because
             // something is probably wrong with the cluster
@@ -430,7 +422,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         if (allocation.nodes().getSize() == 0) {
             return false;
         }
-        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats(nodeFsStatsTimeout);
+        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
         if (stats == null) {
             logger.warn("Unable to determine nodeFsStats, aborting shard move.");
             return false;
