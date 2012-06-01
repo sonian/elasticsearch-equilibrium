@@ -55,7 +55,7 @@ public class NodeInfoHelper extends AbstractComponent {
             request.timeout(TimeValue.timeValueMillis(timeout));
             request.clear();
             request.fs(true);
-            resp = nodesStatsAction.execute(request).actionGet(20000);
+            resp = nodesStatsAction.execute(request).actionGet(timeout);
         } catch (Exception e) {
             logger.error("Exception getting nodeFsStats for all nodes.", e);
             return null;
