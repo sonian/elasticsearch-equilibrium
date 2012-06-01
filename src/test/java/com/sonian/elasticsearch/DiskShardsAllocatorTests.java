@@ -38,7 +38,7 @@ public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
     // Testing functions
     @AfterTest
     public void cleanUp() {
-        closeAllNodes();
+        tu.closeAllNodes();
     }
 
     @Test void injectedDiskShardAllocator() {

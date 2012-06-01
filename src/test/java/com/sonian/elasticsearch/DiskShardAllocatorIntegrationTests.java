@@ -16,7 +16,7 @@ public class DiskShardAllocatorIntegrationTests extends AbstractJettyHttpServerT
 
     @AfterTest
     public void cleanUp() {
-        closeAllNodes();
+        tu.closeAllNodes();
     }
 
 
