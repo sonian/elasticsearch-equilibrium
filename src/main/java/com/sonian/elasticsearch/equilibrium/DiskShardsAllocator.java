@@ -1,12 +1,7 @@
 package com.sonian.elasticsearch.equilibrium;
 
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
-import org.elasticsearch.action.admin.indices.stats.IndicesStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -15,12 +10,10 @@ import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.map.hash.TObjectIntHashMap;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.monitor.fs.FsStats;
 
@@ -41,12 +34,8 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
  */
 public class DiskShardsAllocator extends AbstractComponent implements ShardsAllocator {
 
-    // action used to gather FsStats for all the nodes in the cluster, to check
-    // their disk usage
-    private final TransportNodesStatsAction nodesStatsAction;
-
-    // action used to gather shard sizes for all nodes in the cluster
-    private final TransportIndicesStatsAction indicesStatsAction;
+    // helper providing shard size and fsStats options
+    private final NodeInfoHelper nodeInfoHelper;
 
     // the minimum percentage of free disk space before we stop sending shards
     // to a node
@@ -60,11 +49,9 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     private final double minimumSwapShardRelativeDifferencePercentage;
 
     @Inject
-    public DiskShardsAllocator(Settings settings, TransportNodesStatsAction nodesStatsAction,
-                               TransportIndicesStatsAction indicesStatusAction) {
+    public DiskShardsAllocator(Settings settings, NodeInfoHelper nodeInfoHelper) {
         super(settings);
-        this.nodesStatsAction = nodesStatsAction;
-        this.indicesStatsAction = indicesStatusAction;
+        this.nodeInfoHelper = nodeInfoHelper;
 
         Settings compSettings = settings.getComponentSettings(this.getClass());
 
@@ -115,7 +102,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
         boolean changed = false;
         RoutingNodes routingNodes = allocation.routingNodes();
-        NodesStatsResponse stats = nodeFsStats();
+        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
 
         RoutingNode[] nodes = sortedNodesByShardCountLeastToHigh(allocation);
 
@@ -188,7 +175,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             return false;
         }
 
-        NodesStatsResponse stats = nodeFsStats();
+        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
         RoutingNode[] sortedNodesLeastToHigh = sortedNodesByShardCountLeastToHigh(allocation);
         int lowIndex = 0;
         int highIndex = sortedNodesLeastToHigh.length - 1;
@@ -264,7 +251,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         }
 
         logger.info("Initiating shard swap check.");
-        NodesStatsResponse stats = nodeFsStats();
+        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
         RoutingNode[] nodesSmallestToLargest = sortedNodesByFreeSpaceLeastToHigh(allocation, stats);
         for (RoutingNode node : nodesSmallestToLargest) {
             logger.debug("Node: {} -> {} % used", node.nodeId(),
@@ -285,7 +272,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
         if (sizeDifference >= this.minimumSwapDifferencePercentage) {
             logger.info("Size disparity found, checking for swappable shards.");
-            HashMap<ShardId, Long> shardSizes = nodeShardStats();
+            HashMap<ShardId, Long> shardSizes = this.nodeInfoHelper.nodeShardStats();
 
             // If unable to retrieve shard sizes, abort quickly because
             // something is probably wrong with the cluster
@@ -420,7 +407,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         if (allocation.nodes().getSize() == 0) {
             return false;
         }
-        NodesStatsResponse stats = nodeFsStats();
+        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
         RoutingNode[] sortedNodesLeastToHigh = sortedNodesByShardCountLeastToHigh(allocation);
 
         for (RoutingNode nodeToCheck : sortedNodesLeastToHigh) {
@@ -528,7 +515,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      * @param fs object to average free bytes for
      * @return the average available bytes for all mount points
      */
-    private long averageAvailableBytes(FsStats fs) {
+    public long averageAvailableBytes(FsStats fs) {
         long totalAvail = 0;
         int statNum = 0;
         Iterator<FsStats.Info> i = fs.iterator();
@@ -548,7 +535,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      * @param fs object to average free bytes for
      * @return the average available bytes for all mount points
      */
-    private double averagePercentageFree(FsStats fs) {
+    public double averagePercentageFree(FsStats fs) {
         double totalPercentages = 0;
         int statNum = 0;
         Iterator<FsStats.Info> i = fs.iterator();
@@ -562,49 +549,6 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         double avg = (totalPercentages / statNum);
         logger.trace("Average percentage free: " + avg);
         return avg;
-    }
-
-
-    /**
-     * Return the FS stats for all nodes, times out if no responses are
-     * returned in 10 seconds
-     *
-     * @return NodesStatsResponse for the FsStats for the cluster
-     */
-    private NodesStatsResponse nodeFsStats() {
-        logger.trace("nodeFsStats");
-        NodesStatsRequest request = new NodesStatsRequest(Strings.EMPTY_ARRAY);
-        request.timeout(TimeValue.timeValueMillis(10000));
-        request.clear();
-        request.fs(true);
-        NodesStatsResponse resp = nodesStatsAction.execute(request).actionGet(20000);
-        return resp;
-    }
-
-
-    /**
-     * Retrieves the shard sizes for all shards in the cluster, waits 5
-     * seconds for a response from the cluster nodes
-     *
-     * @return a Map of ShardId to size in bytes of the shard
-     */
-    private HashMap<ShardId, Long> nodeShardStats() {
-        logger.trace("nodeShardStats");
-        final HashMap<ShardId, Long> shardSizes = new HashMap<ShardId, Long>();
-        IndicesStatsRequest request = new IndicesStatsRequest();
-        request.clear();
-        request.store(true);
-        IndicesStats resp;
-        try {
-            resp = indicesStatsAction.execute(request).actionGet(5000);
-        } catch (Exception e) {
-            logger.error("Exception getting shard stats for each node.", e);
-            return null;
-        }
-        for (ShardStats stats : resp.getShards()) {
-            shardSizes.put(stats.getShardRouting().shardId(), stats.stats().store().getSizeInBytes());
-        }
-        return shardSizes;
     }
 
 
@@ -641,6 +585,27 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
 
     /**
+     * Takes a FsStats object and returns the list of percentages of Free disk for the filesystem stats
+     *
+     * @param fs FsStats object to return percentages for
+     * @return a List of Doubles representing percentage free values
+     */
+    public List<Double> percentagesFree(FsStats fs) {
+        List<Double> results = new ArrayList<Double>();
+        Iterator<FsStats.Info> i = fs.iterator();
+        while (i.hasNext()) {
+            FsStats.Info stats = i.next();
+            double percentFree = ((double)stats.available().bytes() / (double)stats.total().bytes()) * 100.0;
+            logger.info("Space: {} bytes available, {} total bytes. Percent free: [{} %]",
+                        stats.available().bytes(), stats.total().bytes(), percentFree);
+            results.add(percentFree);
+        }
+
+        return results;
+    }
+
+
+    /**
      * Check if there is enough disk space for more shards on the node
      *
      * @param shard shard that is being checked
@@ -648,21 +613,20 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      * @param nodeStats the NodesStatsResponse for FS stats of the cluster
      * @return true if the node is below the threshold, false if not
      */
-    private boolean enoughDiskForShard(MutableShardRouting shard, RoutingNode routingNode, NodesStatsResponse nodeStats) {
+    public boolean enoughDiskForShard(MutableShardRouting shard, RoutingNode routingNode, NodesStatsResponse nodeStats) {
         boolean enoughSpace = true;
         
         logger.info("enoughDiskForShard on {} for: {}", routingNode.nodeId(), shard.shardId());
 
-        FsStats fs = nodeStats.getNodesMap().get(routingNode.nodeId()).fs();
-        Iterator<FsStats.Info> i = fs.iterator();
-        while (i.hasNext()) {
-            FsStats.Info stats = i.next();
-            double percentFree = ((double)stats.available().bytes() / (double)stats.total().bytes()) * 100.0;
-            logger.info("Space: {} bytes available, {} total bytes. Percent free: [{} %]",
-                        stats.available().bytes(), stats.total().bytes(), percentFree);
-            if (percentFree < this.minimumAvailablePercentage) {
+        String nodeId = routingNode.nodeId();
+        Map<String, NodeStats> nodeStatsMap = nodeStats.getNodesMap();
+        NodeStats ns = nodeStatsMap.get(nodeId);
+        FsStats fs = ns.fs();
+        List<Double> percents = percentagesFree(fs);
+        for (Double p : percents) {
+            if (p < this.minimumAvailablePercentage) {
                 logger.info("Throttling shard allocation due to excessive disk use ({} < {} % free) on {}",
-                            percentFree, this.minimumAvailablePercentage, routingNode.nodeId());
+                            p, this.minimumAvailablePercentage, nodeId);
                 enoughSpace = false;
             }
         }
