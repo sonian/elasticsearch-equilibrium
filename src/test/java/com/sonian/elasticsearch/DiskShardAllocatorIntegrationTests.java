@@ -1,8 +1,10 @@
 package com.sonian.elasticsearch;
 
 import com.sonian.elasticsearch.equilibrium.ClusterEqualizerService;
+import com.sonian.elasticsearch.equilibrium.NodeInfoHelper;
 import com.sonian.elasticsearch.tests.AbstractJettyHttpServerTests;
 import org.testng.annotations.AfterTest;
+import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 
@@ -15,6 +17,17 @@ public class DiskShardAllocatorIntegrationTests extends AbstractJettyHttpServerT
     @AfterTest
     public void cleanUp() {
         closeAllNodes();
+    }
+
+
+    @Test
+    public void integrationTestNodeHelperTimeout() {
+        tu.startNode("1");
+        tu.createIndex("1","i1",10, 0);
+        NodeInfoHelper nih = tu.instance("1", NodeInfoHelper.class);
+        assertThat("timeout results in a null result", null == nih.nodeFsStats(0));
+        assertThat("timeout results in a null result", null == nih.nodeShardStats(0));
+        tu.deleteIndex("1", "i1");
     }
 
     // These tests are commented out because I might revisit them as
