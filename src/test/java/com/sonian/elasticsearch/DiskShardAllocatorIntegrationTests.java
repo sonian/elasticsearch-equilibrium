@@ -1,8 +1,16 @@
 package com.sonian.elasticsearch;
 
 import com.sonian.elasticsearch.equilibrium.ClusterEqualizerService;
+import com.sonian.elasticsearch.equilibrium.NodeInfoHelper;
 import com.sonian.elasticsearch.tests.AbstractJettyHttpServerTests;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
+import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.testng.annotations.AfterTest;
+import org.testng.annotations.Test;
+
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 
@@ -14,7 +22,24 @@ public class DiskShardAllocatorIntegrationTests extends AbstractJettyHttpServerT
 
     @AfterTest
     public void cleanUp() {
-        closeAllNodes();
+        tu.closeAllNodes();
+    }
+
+
+    @Test
+    public void integrationTestNodeHelperTimeout() {
+        tu.startNode("1");
+        tu.createIndex("1","i1",10, 0);
+        TransportIndicesStatsAction tisa = tu.instance("1", TransportIndicesStatsAction.class);
+        TransportNodesStatsAction tnsa = tu.instance("1", TransportNodesStatsAction.class);
+        Settings s = ImmutableSettings.settingsBuilder()
+                     .put("sonian.elasticsearch.equilibrium.shardStatsTimeout", 0, TimeUnit.SECONDS)
+                     .put("sonian.elasticsearch.equilibrium.nodeFsStatsTimeout", 0, TimeUnit.SECONDS)
+                     .build();
+        NodeInfoHelper nih = new NodeInfoHelper(s, tisa, tnsa);
+        assertThat("timeout results in a null result", null == nih.nodeFsStats());
+        assertThat("timeout results in a null result", null == nih.nodeShardStats());
+        tu.deleteIndex("1", "i1");
     }
 
     // These tests are commented out because I might revisit them as

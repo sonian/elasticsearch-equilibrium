@@ -1,22 +1,16 @@
 package com.sonian.elasticsearch;
 
-import com.sonian.elasticsearch.equilibrium.ClusterEqualizerService;
 import com.sonian.elasticsearch.equilibrium.DiskShardsAllocator;
 import com.sonian.elasticsearch.equilibrium.NodeInfoHelper;
 import com.sonian.elasticsearch.tests.AbstractJettyHttpServerTests;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.testng.annotations.AfterTest;
@@ -37,7 +31,7 @@ public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
     // Testing functions
     @AfterTest
     public void cleanUp() {
-        closeAllNodes();
+        tu.closeAllNodes();
     }
 
     @Test void injectedDiskShardAllocator() {
@@ -48,6 +42,7 @@ public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
 
     @Test
     public void unitTestNodeFsStats() {
+        tu.startNode("1");
         NodeInfoHelper helper = tu.instance("1", NodeInfoHelper.class);
         DiskShardsAllocator dsa = new DiskShardsAllocator(ImmutableSettings.settingsBuilder().build(), helper);
         NodesStatsResponse resp = helper.nodeFsStats();

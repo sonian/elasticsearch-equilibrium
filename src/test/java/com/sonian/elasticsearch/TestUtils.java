@@ -22,10 +22,6 @@ public class TestUtils extends AbstractJettyHttpServerTests {
 
     // Helpers for tests
 
-    public void start(String id) {
-        startNode(id);
-    }
-
     public void createIndex(String id, String name, int numberOfShards, int numberOfRelicas) {
         Client c = client(id);
         c.admin().indices().prepareCreate(name)

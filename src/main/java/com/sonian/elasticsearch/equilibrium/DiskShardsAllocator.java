@@ -103,6 +103,10 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         boolean changed = false;
         RoutingNodes routingNodes = allocation.routingNodes();
         NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
+        if (stats == null) {
+            logger.warn("Unable to determine nodeFsStats, aborting allocation.");
+            return false;
+        }
 
         RoutingNode[] nodes = sortedNodesByShardCountLeastToHigh(allocation);
 
@@ -176,6 +180,11 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         }
 
         NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
+        if (stats == null) {
+            logger.warn("Unable to determine nodeFsStats, aborting rebalance.");
+            return false;
+        }
+
         RoutingNode[] sortedNodesLeastToHigh = sortedNodesByShardCountLeastToHigh(allocation);
         int lowIndex = 0;
         int highIndex = sortedNodesLeastToHigh.length - 1;
@@ -252,6 +261,11 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
         logger.info("Initiating shard swap check.");
         NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
+        if (stats == null) {
+            logger.warn("Unable to determine nodeFsStats, aborting shardSwap.");
+            return false;
+        }
+
         RoutingNode[] nodesSmallestToLargest = sortedNodesByFreeSpaceLeastToHigh(allocation, stats);
         for (RoutingNode node : nodesSmallestToLargest) {
             logger.debug("Node: {} -> {} % used", node.nodeId(),
@@ -408,6 +422,11 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             return false;
         }
         NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
+        if (stats == null) {
+            logger.warn("Unable to determine nodeFsStats, aborting shard move.");
+            return false;
+        }
+
         RoutingNode[] sortedNodesLeastToHigh = sortedNodesByShardCountLeastToHigh(allocation);
 
         for (RoutingNode nodeToCheck : sortedNodesLeastToHigh) {
