@@ -2,7 +2,6 @@ package com.sonian.elasticsearch;
 
 import com.sonian.elasticsearch.equilibrium.DiskShardsAllocator;
 import com.sonian.elasticsearch.equilibrium.NodeInfoHelper;
-import com.sonian.elasticsearch.tests.AbstractJettyHttpServerTests;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -25,25 +24,24 @@ import static org.hamcrest.MatcherAssert.assertThat;
 /**
  * @author dakrone
  */
-public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
-    TestUtils tu = new TestUtils();
+public class DiskShardsAllocatorTests extends AbstractEquilibriumTests {
 
     // Testing functions
     @AfterTest
     public void cleanUp() {
-        tu.closeAllNodes();
+        closeAllNodes();
     }
 
     @Test void injectedDiskShardAllocator() {
-        tu.startNode("1");
-        ShardsAllocator sa = tu.instance("1", ShardsAllocator.class);
+        startNode("1");
+        ShardsAllocator sa = instance("1", ShardsAllocator.class);
         assertThat("DiskShardsAllocator was injected", sa instanceof DiskShardsAllocator);
     }
 
     @Test
     public void unitTestNodeFsStats() {
-        tu.startNode("1");
-        NodeInfoHelper helper = tu.instance("1", NodeInfoHelper.class);
+        startNode("1");
+        NodeInfoHelper helper = instance("1", NodeInfoHelper.class);
         DiskShardsAllocator dsa = new DiskShardsAllocator(ImmutableSettings.settingsBuilder().build(), helper);
         NodesStatsResponse resp = helper.nodeFsStats();
 
@@ -57,12 +55,12 @@ public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
 
     @Test
     public void unitTestNodeShardStats() {
-        tu.startNode("1");
+        startNode("1");
 
-        tu.createIndex("1", "i1", 2, 0);
-        tu.createIndex("1", "i2", 3, 0);
+        createIndex("1", "i1", 2, 0);
+        createIndex("1", "i2", 3, 0);
 
-        NodeInfoHelper helper = tu.instance("1", NodeInfoHelper.class);
+        NodeInfoHelper helper = instance("1", NodeInfoHelper.class);
         HashMap<ShardId, Long> shardSizes = helper.nodeShardStats();
 
         assertThat("there are sizes for all shards", shardSizes.size() == 5);
@@ -72,8 +70,8 @@ public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
             assertThat("each shard has a positive size", size > 0.0);
         }
 
-        tu.deleteIndex("1", "i1");
-        tu.deleteIndex("1", "i2");
+        deleteIndex("1", "i1");
+        deleteIndex("1", "i2");
     }
 
     @Test
@@ -87,8 +85,8 @@ public class DiskShardsAllocatorTests extends AbstractJettyHttpServerTests {
                                              new HashMap<String, String>());
         RoutingNode node = new RoutingNode("node1", dn);
 
-        FsStats fakeSmallFs = tu.makeFakeFsStats(1000, 10);
-        FsStats fakeLargeFs = tu.makeFakeFsStats(1000, 999);
+        FsStats fakeSmallFs = makeFakeFsStats(1000, 10);
+        FsStats fakeLargeFs = makeFakeFsStats(1000, 999);
 
         HashMap<String, NodeStats> fakeSmallStats = new HashMap<String, NodeStats>();
         fakeSmallStats.put("node1", new NodeStats(dn, 0, "hostname", null,

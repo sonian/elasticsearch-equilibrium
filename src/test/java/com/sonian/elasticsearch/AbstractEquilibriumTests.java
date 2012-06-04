@@ -16,9 +16,9 @@ import static org.easymock.EasyMock.replay;
 /**
  * @author dakrone
  */
-public class TestUtils extends AbstractJettyHttpServerTests {
+public class AbstractEquilibriumTests extends AbstractJettyHttpServerTests {
 
-    public TestUtils() {}
+    public AbstractEquilibriumTests() {}
 
     // Helpers for tests
 
