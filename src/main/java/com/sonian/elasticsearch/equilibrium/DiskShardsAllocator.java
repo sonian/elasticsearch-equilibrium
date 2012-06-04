@@ -241,6 +241,46 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     }
 
 
+    public boolean eligibleForSwap(RoutingAllocation allocation, NodesStatsResponse stats) {
+        // Skip if only one node is present in the cluster
+        if (allocation.nodes().size() == 1) {
+            logger.info("Only one node in the cluster, skipping shard swap check.");
+            return false;
+        }
+
+        if (stats == null) {
+            logger.warn("Unable to determine nodeFsStats, aborting shardSwap.");
+            return false;
+        }
+        return true;
+    }
+
+
+    /**
+     * Given a 'larger' node, a 'smaller' node and stats about the nodes,
+     * determine whether the nodes differ enough in used disk space to warrant
+     * a shard swap.
+     *
+     * @param largeNode Node presumed to be larger
+     * @param smallNode Node presumed to be smaller
+     * @param stats NodeFsStats containing FsStats about the nodes
+     * @return true if the nodes differ enough, false otherwise
+     */
+    public boolean nodesDifferEnoughToSwap(RoutingNode largeNode, RoutingNode smallNode,
+                                           NodesStatsResponse stats) {
+        double largeNodeUsedSize = 100 - averagePercentageFree(stats.getNodesMap().get(largeNode.nodeId()).fs());
+        double smallNodeUsedSize = 100 - averagePercentageFree(stats.getNodesMap().get(smallNode.nodeId()).fs());
+
+        double sizeDifference = largeNodeUsedSize - smallNodeUsedSize;
+
+        logger.info("Checking size disparity: {}[{} % used] -> {}[{} % used] ({} >= {})",
+                largeNode.nodeId(), largeNodeUsedSize,
+                smallNode.nodeId(), smallNodeUsedSize,
+                sizeDifference, this.minimumSwapDifferencePercentage);
+        return (sizeDifference >= this.minimumSwapDifferencePercentage);
+    }
+
+
     /**
      * The shardSwap method checks to see whether the largest and smallest
      * nodes are too far apart from each other, in terms of disk space
@@ -253,17 +293,11 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     public boolean shardSwap(RoutingAllocation allocation) {
         boolean changed = false;
 
-        // Skip if only one node is present in the cluster
-        if (allocation.nodes().size() == 1) {
-            logger.info("Only one node in the cluster, skipping shard swap check.");
-            return changed;
-        }
-
         logger.info("Initiating shard swap check.");
+
         NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
-        if (stats == null) {
-            logger.warn("Unable to determine nodeFsStats, aborting shardSwap.");
-            return false;
+        if (!eligibleForSwap(allocation, stats)) {
+            return changed;
         }
 
         RoutingNode[] nodesSmallestToLargest = sortedNodesByFreeSpaceLeastToHigh(allocation, stats);
@@ -274,17 +308,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
         RoutingNode largestNode = nodesSmallestToLargest[0];
         RoutingNode smallestNode = nodesSmallestToLargest[nodesSmallestToLargest.length - 1];
-        double largestNodeUsedSize = 100 - averagePercentageFree(stats.getNodesMap().get(largestNode.nodeId()).fs());
-        double smallestNodeUsedSize = 100 - averagePercentageFree(stats.getNodesMap().get(smallestNode.nodeId()).fs());
 
-        double sizeDifference = largestNodeUsedSize - smallestNodeUsedSize;
-
-        logger.info("Checking size disparity: {}[{} % used] -> {}[{} % used] ({} >= {})",
-                    largestNode.nodeId(), largestNodeUsedSize,
-                    smallestNode.nodeId(), smallestNodeUsedSize,
-                    sizeDifference, this.minimumSwapDifferencePercentage);
-
-        if (sizeDifference >= this.minimumSwapDifferencePercentage) {
+        if (nodesDifferEnoughToSwap(largestNode, smallestNode, stats)) {
             logger.info("Size disparity found, checking for swappable shards.");
             HashMap<ShardId, Long> shardSizes = this.nodeInfoHelper.nodeShardStats();
 

@@ -39,8 +39,8 @@ public class DiskShardAllocatorIntegrationTests extends AbstractEquilibriumTests
     @Test
     public void integrationTestNodeHelperTimeout() {
         startNode("1");
-        createIndex("1", "i1", 10, 0);
-        waitForGreen("1","i1","10s");
+        createIndex("1", "itnht1", 10, 0);
+        waitForGreen("1","itnht1","10s");
         TransportIndicesStatsAction tisa = instance("1", TransportIndicesStatsAction.class);
         TransportNodesStatsAction tnsa = instance("1", TransportNodesStatsAction.class);
         Settings s = ImmutableSettings.settingsBuilder()
@@ -50,7 +50,8 @@ public class DiskShardAllocatorIntegrationTests extends AbstractEquilibriumTests
         NodeInfoHelper nih = new NodeInfoHelper(s, tisa, tnsa);
         assertThat("timeout results in a null result", null == nih.nodeFsStats());
         assertThat("timeout results in a null result", null == nih.nodeShardStats());
-        deleteIndex("1", "i1");
+        deleteIndex("1", "itnht1");
+        waitForGreen("1", null, "10s");
     }
 
 
@@ -74,10 +75,10 @@ public class DiskShardAllocatorIntegrationTests extends AbstractEquilibriumTests
     public void integrationTestNodeShardStats() {
         startNode("1");
 
-        createIndex("1", "i1", 2, 0);
-        createIndex("1", "i2", 3, 0);
-        waitForGreen("1","i1","10s");
-        waitForGreen("1","i2","10s");
+        createIndex("1", "itnss1", 2, 0);
+        createIndex("1", "itnss2", 3, 0);
+        waitForGreen("1","itnss1","10s");
+        waitForGreen("1","itnss2","10s");
 
         NodeInfoHelper helper = instance("1", NodeInfoHelper.class);
         HashMap<ShardId, Long> shardSizes = helper.nodeShardStats();
@@ -89,8 +90,9 @@ public class DiskShardAllocatorIntegrationTests extends AbstractEquilibriumTests
             assertThat("each shard has a positive size", size > 0.0);
         }
 
-        deleteIndex("1", "i1");
-        deleteIndex("1", "i2");
+        deleteIndex("1", "itnss1");
+        deleteIndex("1", "itnss2");
+        waitForGreen("1", null, "10s");
     }
 
 
@@ -119,6 +121,7 @@ public class DiskShardAllocatorIntegrationTests extends AbstractEquilibriumTests
 
         deleteIndex("1", "i1");
         deleteIndex("1", "i2");
+        waitForGreen("1", null, "10s");
     }
 
     //@Test
@@ -155,5 +158,6 @@ public class DiskShardAllocatorIntegrationTests extends AbstractEquilibriumTests
         deleteIndex("1", "i1");
         deleteIndex("1", "i2");
         deleteIndex("1", "i3");
+        waitForGreen("1", null, "10s");
     }
 }

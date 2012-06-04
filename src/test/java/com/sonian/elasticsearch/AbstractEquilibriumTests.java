@@ -58,11 +58,19 @@ public class AbstractEquilibriumTests extends AbstractJettyHttpServerTests {
     }
 
     public void waitForGreen(String id, String idx, String timeout) {
-        client(id).admin().cluster().prepareHealth(idx).setWaitForGreenStatus().setTimeout(timeout).execute().actionGet();
+        if (idx == null) {
+            client(id).admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout(timeout).execute().actionGet();
+        } else {
+            client(id).admin().cluster().prepareHealth(idx).setWaitForGreenStatus().setTimeout(timeout).execute().actionGet();
+        }
     }
 
     public void waitForYellow(String id, String idx, String timeout) {
-        client(id).admin().cluster().prepareHealth(idx).setWaitForYellowStatus().setTimeout(timeout).execute().actionGet();
+        if (idx == null) {
+            client(id).admin().cluster().prepareHealth().setWaitForYellowStatus().setTimeout(timeout).execute().actionGet();
+        } else {
+            client(id).admin().cluster().prepareHealth(idx).setWaitForYellowStatus().setTimeout(timeout).execute().actionGet();
+        }
     }
 
     public FsStats makeFakeFsStats(long total, long avail) {
