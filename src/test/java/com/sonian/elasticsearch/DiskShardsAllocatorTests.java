@@ -59,4 +59,32 @@ public class DiskShardsAllocatorTests extends AbstractEquilibriumTests {
 
     }
 
+    @Test
+    public void unitTestNodesDifferEnoughToSwap() {
+        DiskShardsAllocator dsa = new DiskShardsAllocator(ImmutableSettings.settingsBuilder().build(), null);
+
+        DiscoveryNode dn1 = new DiscoveryNode("node1", "node1", null, new HashMap<String, String>());
+        DiscoveryNode dn2 = new DiscoveryNode("node2", "node2", null, new HashMap<String, String>());
+        RoutingNode node1 = new RoutingNode("node1", dn1);
+        RoutingNode node2 = new RoutingNode("node2", dn2);
+
+        FsStats fs1 = makeFakeFsStats(10, 1);
+        FsStats fs2 = makeFakeFsStats(10, 9);
+
+        HashMap<String, NodeStats> fakeNodeStats = new HashMap<String, NodeStats>();
+        fakeNodeStats.put("node1", new NodeStats(dn1, 0, "hostname", null,
+                null, null, null, null, null, fs1, null, null));
+        fakeNodeStats.put("node2", new NodeStats(dn2, 0, "hostname", null,
+                null, null, null, null, null, fs2, null, null));
+
+        NodesStatsResponse fakeNSR = createMock(NodesStatsResponse.class);
+        expect(fakeNSR.getNodesMap()).andStubReturn(fakeNodeStats);
+        replay(fakeNSR);
+
+        assertThat("node1 differs enough from node2 to swap",
+                dsa.nodesDifferEnoughToSwap(node1, node2, fakeNSR));
+        assertThat("node2 is not different enough from node1 to swap",
+                !dsa.nodesDifferEnoughToSwap(node2, node1, fakeNSR));
+    }
+
 }

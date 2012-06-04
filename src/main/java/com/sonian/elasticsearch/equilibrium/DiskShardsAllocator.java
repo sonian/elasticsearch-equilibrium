@@ -268,8 +268,9 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      */
     public boolean nodesDifferEnoughToSwap(RoutingNode largeNode, RoutingNode smallNode,
                                            NodesStatsResponse stats) {
-        double largeNodeUsedSize = 100 - averagePercentageFree(stats.getNodesMap().get(largeNode.nodeId()).fs());
-        double smallNodeUsedSize = 100 - averagePercentageFree(stats.getNodesMap().get(smallNode.nodeId()).fs());
+        Map<String, NodeStats> nodeStats = stats.getNodesMap();
+        double largeNodeUsedSize = 100 - averagePercentageFree(nodeStats.get(largeNode.nodeId()).fs());
+        double smallNodeUsedSize = 100 - averagePercentageFree(nodeStats.get(smallNode.nodeId()).fs());
 
         double sizeDifference = largeNodeUsedSize - smallNodeUsedSize;
 
