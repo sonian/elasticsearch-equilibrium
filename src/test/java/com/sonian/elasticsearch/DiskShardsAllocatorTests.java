@@ -8,6 +8,7 @@ import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.testng.annotations.Test;
 
@@ -86,5 +87,38 @@ public class DiskShardsAllocatorTests extends AbstractEquilibriumTests {
         assertThat("node2 is not different enough from node1 to swap",
                 !dsa.nodesDifferEnoughToSwap(node2, node1, fakeNSR));
     }
+
+    @Test
+    public void unitTestShardsDifferEnoughToSwap() {
+        DiskShardsAllocator dsa = new DiskShardsAllocator(ImmutableSettings.settingsBuilder().build(), null);
+        MutableShardRouting largeShard = new MutableShardRouting("i1", 0, "node1", true, ShardRoutingState.UNASSIGNED, 0);
+        MutableShardRouting smallShard = new MutableShardRouting("i2", 0, "node1", true, ShardRoutingState.UNASSIGNED, 0);
+        MutableShardRouting mediumShard = new MutableShardRouting("i3", 0, "node1", true, ShardRoutingState.UNASSIGNED, 0);
+        MutableShardRouting zeroShard = new MutableShardRouting("i4", 0, "node1", true, ShardRoutingState.UNASSIGNED, 0);
+
+        HashMap<ShardId, Long> sizes = new HashMap<ShardId, Long>();
+        sizes.put(largeShard.shardId(), (long) 100);
+        sizes.put(smallShard.shardId(), (long) 10);
+        sizes.put(mediumShard.shardId(), (long) 74);
+        sizes.put(zeroShard.shardId(), (long) 0);
+
+        assertThat("the shards are different enough to swap",
+                dsa.shardsDifferEnoughToSwap(largeShard, smallShard, sizes));
+        assertThat("the shards are different enough to swap",
+                dsa.shardsDifferEnoughToSwap(largeShard, mediumShard, sizes));
+        assertThat("the shards are not different enough to swap",
+                !dsa.shardsDifferEnoughToSwap(smallShard, largeShard, sizes));
+
+        assertThat("zero-size shard aborts swap",
+                !dsa.shardsDifferEnoughToSwap(largeShard, zeroShard, sizes));
+        assertThat("zero-size shard aborts swap",
+                !dsa.shardsDifferEnoughToSwap(zeroShard, smallShard, sizes));
+
+        assertThat("null shard aborts swap",
+                !dsa.shardsDifferEnoughToSwap(largeShard, null, sizes));
+        assertThat("null shard aborts swap",
+                !dsa.shardsDifferEnoughToSwap(null, smallShard, sizes));
+    }
+
 
 }

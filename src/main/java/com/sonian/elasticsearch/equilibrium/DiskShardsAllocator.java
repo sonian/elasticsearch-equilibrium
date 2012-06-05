@@ -290,6 +290,54 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
 
     /**
+     * Checks two shards to see whether they differ enough in size that they
+     * should be swapped
+     *
+     * @param largeShard Large shard to be considered for swapping
+     * @param smallShard Small shard to be considered for swapping
+     * @param shardSizes Map of shardId to shard size for size comparison
+     * @return true if the shards should be swapped, false otherwise
+     */
+    public boolean shardsDifferEnoughToSwap(final MutableShardRouting largeShard,
+                                            final MutableShardRouting smallShard,
+                                            final HashMap<ShardId, Long> shardSizes) {
+        // If we weren't able to find shards that could be swapped, just
+        // bail out early
+        if (largeShard == null || smallShard == null) {
+            logger.info("Unable to find shards to swap. [deciders]");
+            return false;
+        }
+
+        // If we've gone through the list, and the 'larger' shard is
+        // smaller than the 'smaller' shard, don't bother swapping
+        long largeSize = shardSizes.get(largeShard.shardId());
+        long smallSize = shardSizes.get(smallShard.shardId());
+
+        logger.info("Swappable shards found.");
+
+        logger.info("large: {}[{} bytes], small: {}[{} bytes]",
+                largeShard, largeSize, smallShard, smallSize);
+
+        if (largeSize == 0 || smallSize == 0) {
+            logger.warn("Unable to find shards to swap. [shard size 0?!]");
+            return false;
+        }
+
+        // check to make sure it's actually worth swapping shards, the size
+        // disparity should be large enough to make a difference
+        double shardRelativeSize = (100.0 * smallSize / largeSize);
+        if (shardRelativeSize > this.minimumSwapShardRelativeDifferencePercentage) {
+            logger.info("Unable to find suitable shards to swap. Smallest shard {}% of large shard size, must be <= {}%",
+                    shardRelativeSize, this.minimumSwapShardRelativeDifferencePercentage);
+            return false;
+        }
+        logger.info("Small shard is {} % of large shard size, below swapping threshold of {} %.",
+                shardRelativeSize, this.minimumSwapShardRelativeDifferencePercentage);
+
+        return true;
+    }
+
+    /**
      * The shardSwap method checks to see whether the largest and smallest
      * nodes are too far apart from each other, in terms of disk space
      * percentage, and attempts to swap a large shard from the loaded node
@@ -374,39 +422,10 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
                 }
             }
 
-            // If we weren't able to find shards that could be swapped, just
-            // bail out early
-            if (largestShardAvailableForRelocation == null || smallestShardAvailableForRelocation == null) {
-                logger.info("Unable to find shards to swap. [deciders]");
+            if (!shardsDifferEnoughToSwap(largestShardAvailableForRelocation,
+                    smallestShardAvailableForRelocation, shardSizes)) {
                 return changed;
             }
-
-            // If we've gone through the list, and the 'larger' shard is
-            // smaller than the 'smaller' shard, don't bother swapping
-            long largeSize = shardSizes.get(largestShardAvailableForRelocation.shardId());
-            long smallSize = shardSizes.get(smallestShardAvailableForRelocation.shardId());
-
-            logger.info("Swappable shards found.");
-
-            logger.info("large: {}[{} bytes], small: {}[{} bytes]",
-                        largestShardAvailableForRelocation, largeSize,
-                        smallestShardAvailableForRelocation, smallSize);
-
-            if (largeSize == 0 || smallSize == 0) {
-                logger.warn("Unable to find shards to swap. [shard size 0?!]");
-                return changed;
-            }
-
-            // check to make sure it's actually worth swapping shards, the size
-            // disparity should be large enough to make a difference
-            double shardRelativeSize = (100.0 * smallSize / largeSize);
-            if (shardRelativeSize > this.minimumSwapShardRelativeDifferencePercentage) {
-                logger.info("Unable to find suitable shards to swap. Smallest shard {}% of large shard size, must be <= {}%",
-                            shardRelativeSize, this.minimumSwapShardRelativeDifferencePercentage);
-                return changed;
-            }
-            logger.info("Small shard is {} % of large shard size, below swapping threshold of {} %.",
-                        shardRelativeSize, this.minimumSwapShardRelativeDifferencePercentage);
 
             // swap the two shards
             logger.info("Swapping ({}) and ({})",
