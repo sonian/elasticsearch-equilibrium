@@ -3,9 +3,16 @@ package com.sonian.elasticsearch;
 import com.sonian.elasticsearch.equilibrium.ClusterEqualizerService;
 import com.sonian.elasticsearch.equilibrium.DiskShardsAllocator;
 import com.sonian.elasticsearch.equilibrium.NodeInfoHelper;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -13,10 +20,15 @@ import org.elasticsearch.index.shard.ShardId;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.Test;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.easymock.EasyMock.createMock;
+import static org.easymock.EasyMock.expect;
+import static org.easymock.EasyMock.replay;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 /**
@@ -93,6 +105,38 @@ public class DiskShardAllocatorIntegrationTests extends AbstractEquilibriumTests
         deleteIndex("1", "itnss1");
         deleteIndex("1", "itnss2");
         waitForGreen("1", null, "10s");
+    }
+
+
+    @Test
+    public void integrationTestEligibleForSwap() {
+        startNode("1");
+
+        DiskShardsAllocator dsa = instance("1", DiskShardsAllocator.class);
+        NodeInfoHelper nih = instance("1", NodeInfoHelper.class);
+
+        DiscoveryNodes dns = createMock(DiscoveryNodes.class);
+        expect(dns.size()).andStubReturn(1);
+
+        RoutingAllocation allocation = createMock(RoutingAllocation.class);
+        expect(allocation.nodes()).andStubReturn(dns);
+        replay(allocation, dns);
+
+        assertThat("We can't swap with 1 node",
+                dsa.eligibleForSwap(allocation, nih.nodeFsStats()) == false);
+        assertThat("We can't swap with null NodeStats",
+                dsa.eligibleForSwap(allocation, null) == false);
+
+        DiscoveryNodes dns2 = createMock(DiscoveryNodes.class);
+        expect(dns2.size()).andStubReturn(2);
+
+        RoutingAllocation allocation2 = createMock(RoutingAllocation.class);
+        expect(allocation2.nodes()).andStubReturn(dns2);
+        replay(allocation2, dns2);
+
+        assertThat("We can swap with 2 nodes",
+                dsa.eligibleForSwap(allocation2, nih.nodeFsStats()));
+
     }
 
 

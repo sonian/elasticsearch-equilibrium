@@ -241,6 +241,13 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     }
 
 
+    /**
+     * Determine whether a shard swap should be attempted
+     *
+     * @param allocation RoutingAllocation for the cluster
+     * @param stats NodeStatsResponse containing FsStats for each node in the cluster
+     * @return true if a swap should be attempted, false otherwise
+     */
     public boolean eligibleForSwap(final RoutingAllocation allocation, final NodesStatsResponse stats) {
         // Skip if only one node is present in the cluster
         if (allocation.nodes().size() == 1) {
