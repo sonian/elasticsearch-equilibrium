@@ -3,15 +3,10 @@ package com.sonian.elasticsearch;
 import com.sonian.elasticsearch.equilibrium.ClusterEqualizerService;
 import com.sonian.elasticsearch.equilibrium.DiskShardsAllocator;
 import com.sonian.elasticsearch.equilibrium.NodeInfoHelper;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -20,15 +15,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.Test;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.easymock.EasyMock.createMock;
-import static org.easymock.EasyMock.expect;
-import static org.easymock.EasyMock.replay;
+import static org.easymock.EasyMock.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 /**
@@ -90,7 +81,7 @@ public class DiskShardAllocatorIntegrationTests extends AbstractEquilibriumTests
         createIndex("1", "itnss1", 2, 0);
         createIndex("1", "itnss2", 3, 0);
         waitForGreen("1","itnss1","10s");
-        waitForGreen("1","itnss2","10s");
+        waitForGreen("1", "itnss2", "10s");
 
         NodeInfoHelper helper = instance("1", NodeInfoHelper.class);
         HashMap<ShardId, Long> shardSizes = helper.nodeShardStats();

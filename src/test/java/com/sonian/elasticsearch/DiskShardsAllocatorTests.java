@@ -7,12 +7,17 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.testng.annotations.Test;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 import static org.easymock.EasyMock.*;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -120,5 +125,36 @@ public class DiskShardsAllocatorTests extends AbstractEquilibriumTests {
                 !dsa.shardsDifferEnoughToSwap(null, smallShard, sizes));
     }
 
+    @Test
+    public void unitTestFirstShardThatCanBeRelocated() {
+        DiskShardsAllocator dsa = new DiskShardsAllocator(ImmutableSettings.settingsBuilder().build(), null);
+
+        AllocationDeciders deciders = createMock(AllocationDeciders.class);
+        expect(deciders.canAllocate((MutableShardRouting)anyObject(),
+                (RoutingNode)anyObject(),
+                (RoutingAllocation)anyObject()))
+                .andReturn(AllocationDecider.Decision.NO)
+                .andReturn(AllocationDecider.Decision.YES)
+                .andStubReturn(AllocationDecider.Decision.NO);
+        replay(deciders);
+
+        RoutingAllocation allocation = createMock(RoutingAllocation.class);
+        expect(allocation.deciders()).andStubReturn(deciders);
+        replay(allocation);
+
+        MutableShardRouting s1 = new MutableShardRouting("i1", 0, "node1", true, ShardRoutingState.UNASSIGNED, 0);
+        MutableShardRouting s2 = new MutableShardRouting("i2", 0, "node1", true, ShardRoutingState.UNASSIGNED, 0);
+        MutableShardRouting s3 = new MutableShardRouting("i3", 0, "node1", true, ShardRoutingState.UNASSIGNED, 0);
+        List<MutableShardRouting> shards = new ArrayList<MutableShardRouting>();
+        shards.add(s1);
+        shards.add(s2);
+        shards.add(s3);
+
+        DiscoveryNode dn = new DiscoveryNode("node1", "node1", null, new HashMap<String, String>());
+        RoutingNode rn = new RoutingNode("node1", dn);
+
+        assertThat("the first valid shard is returned",
+                dsa.firstShardThatCanBeRelocated(allocation, shards, rn) == s2);
+    }
 
 }
