@@ -337,6 +337,34 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         return true;
     }
 
+
+    /**
+     * Returns the first shard out of a list that can be allocated to the 'to'
+     * node. Returns null if no shard can be found.
+     *
+     * @param allocation RoutingAllocation of the cluster
+     * @param shards list of shards to check for relocatibility
+     * @param to RoutingNode to check shard relocation against
+     * @return shard that can be relocated
+     */
+    public MutableShardRouting firstShardThatCanBeRelocated(final RoutingAllocation allocation,
+                                                            final List<MutableShardRouting> shards,
+                                                            final RoutingNode to) {
+        MutableShardRouting resultShard = null;
+
+        for (MutableShardRouting shard : shards) {
+            logger.debug("Checking deciders for {}...", shard);
+            if (allocation.deciders().canAllocate(shard, to, allocation).allocate()) {
+                resultShard = shard;
+                logger.debug("Deciders have OKed {} for swapping.", resultShard);
+                break;
+            }
+        }
+
+        return resultShard;
+    }
+
+
     /**
      * The shardSwap method checks to see whether the largest and smallest
      * nodes are too far apart from each other, in terms of disk space
@@ -357,9 +385,11 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         }
 
         RoutingNode[] nodesSmallestToLargest = sortedNodesByFreeSpaceLeastToHigh(allocation, stats);
-        for (RoutingNode node : nodesSmallestToLargest) {
-            logger.debug("Node: {} -> {} % used", node.nodeId(),
-                         (100 - averagePercentageFree(stats.getNodesMap().get(node.nodeId()).fs())));
+        if (logger.isDebugEnabled()) {
+            for (RoutingNode node : nodesSmallestToLargest) {
+                logger.debug("Node: {} -> {} % used", node.nodeId(),
+                        (100 - averagePercentageFree(stats.getNodesMap().get(node.nodeId()).fs())));
+            }
         }
 
         RoutingNode largestNode = nodesSmallestToLargest[0];
@@ -383,44 +413,19 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             List<MutableShardRouting> smallestNodeShards = sortedStartedShardsOnNodeLargestToSmallest(smallestNode, shardSizes);
             Collections.reverse(smallestNodeShards);
 
-            MutableShardRouting largestShardAvailableForRelocation = null;
-            MutableShardRouting smallestShardAvailableForRelocation = null;
-
             if (logger.isTraceEnabled()) {
                 for (MutableShardRouting shard : largestNodeShards) {
                     logger.trace("[large] shard {} => {}", shard.shardId(), shardSizes.get(shard.shardId()));
                 }
-            }
-
-            // check if we can find a shard to relocate from the largest to
-            // smallest node
-            for (MutableShardRouting shard : largestNodeShards) {
-                logger.debug("[large] Checking deciders for {}...", shard);
-                if (allocation.deciders().canAllocate(shard, smallestNode, allocation).allocate()) {
-                    largestShardAvailableForRelocation = shard;
-                    logger.debug("[large] Deciders have OKed {} for swapping.",
-                                 largestShardAvailableForRelocation);
-                    break;
-                }
-            }
-
-            if (logger.isTraceEnabled()) {
                 for (MutableShardRouting shard : smallestNodeShards) {
                     logger.trace("[small] shard {} => {}", shard.shardId(), shardSizes.get(shard.shardId()));
                 }
             }
 
-            // check if we can find a shard to relocate from the smallest to
-            // largest node
-            for (MutableShardRouting shard : smallestNodeShards) {
-                logger.debug("[small] Checking deciders for {}...", shard);
-                if (allocation.deciders().canAllocate(shard, largestNode, allocation).allocate()) {
-                    smallestShardAvailableForRelocation = shard;
-                    logger.debug("[small] Deciders have OKed {} for swapping.",
-                                 smallestShardAvailableForRelocation);
-                    break;
-                }
-            }
+            MutableShardRouting largestShardAvailableForRelocation =
+                    firstShardThatCanBeRelocated(allocation, largestNodeShards, smallestNode);
+            MutableShardRouting smallestShardAvailableForRelocation =
+                    firstShardThatCanBeRelocated(allocation, smallestNodeShards, largestNode);
 
             if (!shardsDifferEnoughToSwap(largestShardAvailableForRelocation,
                     smallestShardAvailableForRelocation, shardSizes)) {
