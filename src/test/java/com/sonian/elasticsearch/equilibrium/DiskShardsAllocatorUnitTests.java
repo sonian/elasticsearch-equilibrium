@@ -1,5 +1,6 @@
 package com.sonian.elasticsearch.equilibrium;
 
+import org.easymock.IAnswer;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -9,13 +10,16 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 
 import static org.easymock.EasyMock.*;
@@ -24,7 +28,29 @@ import static org.hamcrest.MatcherAssert.assertThat;
 /**
  * @author dakrone
  */
-public class DiskShardsAllocatorUnitTests extends AbstractEquilibriumTests {
+public class DiskShardsAllocatorUnitTests {
+
+
+    public FsStats makeFakeFsStats(long total, long avail) {
+        FsStats fs = createMock(FsStats.class);
+        final FsStats.Info[] infos = new FsStats.Info[1];
+
+        FsStats.Info fsInfo1 = createMock(FsStats.Info.class);
+        expect(fsInfo1.total()).andStubReturn(new ByteSizeValue(total));
+        expect(fsInfo1.available()).andStubReturn(new ByteSizeValue(avail));
+
+        infos[0] = fsInfo1;
+        expect(fs.iterator()).andStubAnswer(new IAnswer<Iterator<FsStats.Info>>() {
+            @Override
+            public Iterator<FsStats.Info> answer() throws Throwable {
+                return Iterators.forArray(infos);
+            }
+        });
+
+        replay(fs, fsInfo1);
+
+        return fs;
+    }
 
     @Test
     public void testEnoughDiskForShard() {

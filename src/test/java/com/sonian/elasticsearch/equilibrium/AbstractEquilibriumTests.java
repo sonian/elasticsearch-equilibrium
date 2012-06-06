@@ -1,20 +1,10 @@
 package com.sonian.elasticsearch.equilibrium;
 
 import com.sonian.elasticsearch.tests.AbstractJettyHttpServerTests;
-import org.easymock.IAnswer;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.monitor.fs.FsStats;
-
-import java.util.Iterator;
-
-import static org.easymock.EasyMock.createMock;
-import static org.easymock.EasyMock.expect;
-import static org.easymock.EasyMock.replay;
 
 /**
  * @author dakrone
@@ -76,24 +66,4 @@ public class AbstractEquilibriumTests extends AbstractJettyHttpServerTests {
         }
     }
 
-    public FsStats makeFakeFsStats(long total, long avail) {
-        FsStats fs = createMock(FsStats.class);
-        final FsStats.Info[] infos = new FsStats.Info[1];
-
-        FsStats.Info fsInfo1 = createMock(FsStats.Info.class);
-        expect(fsInfo1.total()).andStubReturn(new ByteSizeValue(total));
-        expect(fsInfo1.available()).andStubReturn(new ByteSizeValue(avail));
-
-        infos[0] = fsInfo1;
-        expect(fs.iterator()).andStubAnswer(new IAnswer<Iterator<FsStats.Info>>() {
-            @Override
-            public Iterator<FsStats.Info> answer() throws Throwable {
-                return Iterators.forArray(infos);
-            }
-        });
-
-        replay(fs, fsInfo1);
-
-        return fs;
-    }
 }
