@@ -33,14 +33,14 @@ public class DiskShardAllocatorIntegrationTests extends AbstractEquilibriumTests
     }
 
 
-    @Test void injectedDiskShardAllocator() {
+    @Test void testInjectedDiskShardAllocator() {
         startNode("1");
         ShardsAllocator sa = instance("1", ShardsAllocator.class);
         assertThat("DiskShardsAllocator was injected", sa instanceof DiskShardsAllocator);
     }
 
     @Test
-    public void integrationTestNodeHelperTimeout() {
+    public void testNodeHelperTimeout() {
         startNode("1");
         createIndex("1", "itnht1", 10, 0);
         waitForGreen("1","itnht1","10s");
@@ -59,7 +59,7 @@ public class DiskShardAllocatorIntegrationTests extends AbstractEquilibriumTests
 
 
     @Test
-    public void integrationTestNodeFsStats() {
+    public void testNodeFsStats() {
         startNode("1");
         NodeInfoHelper helper = instance("1", NodeInfoHelper.class);
         DiskShardsAllocator dsa = new DiskShardsAllocator(ImmutableSettings.settingsBuilder().build(), helper);
@@ -75,7 +75,7 @@ public class DiskShardAllocatorIntegrationTests extends AbstractEquilibriumTests
 
 
     @Test
-    public void integrationTestNodeShardStats() {
+    public void testNodeShardStats() {
         startNode("1");
 
         createIndex("1", "itnss1", 2, 0);
@@ -100,7 +100,7 @@ public class DiskShardAllocatorIntegrationTests extends AbstractEquilibriumTests
 
 
     @Test
-    public void integrationTestEligibleForSwap() {
+    public void testEligibleForSwap() {
         startNode("1");
 
         DiskShardsAllocator dsa = instance("1", DiskShardsAllocator.class);
@@ -160,7 +160,7 @@ public class DiskShardAllocatorIntegrationTests extends AbstractEquilibriumTests
     }
 
     //@Test
-    public void rebalanceTest() {
+    public void testRebalance() {
         startNode("1");
         startNode("2");
         startNode("3");

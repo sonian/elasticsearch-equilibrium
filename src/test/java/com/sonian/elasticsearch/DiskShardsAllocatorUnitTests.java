@@ -28,7 +28,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 public class DiskShardsAllocatorUnitTests extends AbstractEquilibriumTests {
 
     @Test
-    public void unitTestEnoughDiskForShard() {
+    public void testEnoughDiskForShard() {
         DiskShardsAllocator dsa = new DiskShardsAllocator(ImmutableSettings.settingsBuilder().build(), null);
 
         MutableShardRouting msr = new MutableShardRouting("i1", 0, "node1", true,
@@ -66,7 +66,7 @@ public class DiskShardsAllocatorUnitTests extends AbstractEquilibriumTests {
     }
 
     @Test
-    public void unitTestNodesDifferEnoughToSwap() {
+    public void testNodesDifferEnoughToSwap() {
         DiskShardsAllocator dsa = new DiskShardsAllocator(ImmutableSettings.settingsBuilder().build(), null);
 
         DiscoveryNode dn1 = new DiscoveryNode("node1", "node1", null, new HashMap<String, String>());
@@ -94,7 +94,7 @@ public class DiskShardsAllocatorUnitTests extends AbstractEquilibriumTests {
     }
 
     @Test
-    public void unitTestShardsDifferEnoughToSwap() {
+    public void testShardsDifferEnoughToSwap() {
         DiskShardsAllocator dsa = new DiskShardsAllocator(ImmutableSettings.settingsBuilder().build(), null);
         MutableShardRouting largeShard = new MutableShardRouting("i1", 0, "node1", true, ShardRoutingState.UNASSIGNED, 0);
         MutableShardRouting smallShard = new MutableShardRouting("i2", 0, "node1", true, ShardRoutingState.UNASSIGNED, 0);
@@ -126,7 +126,7 @@ public class DiskShardsAllocatorUnitTests extends AbstractEquilibriumTests {
     }
 
     @Test
-    public void unitTestFirstShardThatCanBeRelocated() {
+    public void testFirstShardThatCanBeRelocated() {
         DiskShardsAllocator dsa = new DiskShardsAllocator(ImmutableSettings.settingsBuilder().build(), null);
 
         AllocationDeciders deciders = createMock(AllocationDeciders.class);
