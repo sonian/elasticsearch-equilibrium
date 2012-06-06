@@ -1,8 +1,5 @@
-package com.sonian.elasticsearch;
+package com.sonian.elasticsearch.equilibrium;
 
-import com.sonian.elasticsearch.equilibrium.ClusterEqualizerService;
-import com.sonian.elasticsearch.equilibrium.DiskShardsAllocator;
-import com.sonian.elasticsearch.equilibrium.NodeInfoHelper;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;

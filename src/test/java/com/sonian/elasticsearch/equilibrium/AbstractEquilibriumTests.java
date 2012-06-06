@@ -1,4 +1,4 @@
-package com.sonian.elasticsearch;
+package com.sonian.elasticsearch.equilibrium;
 
 import com.sonian.elasticsearch.tests.AbstractJettyHttpServerTests;
 import org.easymock.IAnswer;

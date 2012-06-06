@@ -1,6 +1,5 @@
-package com.sonian.elasticsearch;
+package com.sonian.elasticsearch.equilibrium;
 
-import com.sonian.elasticsearch.equilibrium.DiskShardsAllocator;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
