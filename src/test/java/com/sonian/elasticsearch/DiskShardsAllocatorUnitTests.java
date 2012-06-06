@@ -25,7 +25,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 /**
  * @author dakrone
  */
-public class DiskShardsAllocatorTests extends AbstractEquilibriumTests {
+public class DiskShardsAllocatorUnitTests extends AbstractEquilibriumTests {
 
     @Test
     public void unitTestEnoughDiskForShard() {
