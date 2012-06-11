@@ -1,24 +1,17 @@
-package com.sonian.elasticsearch;
+package com.sonian.elasticsearch.equilibrium;
 
 import com.sonian.elasticsearch.tests.AbstractJettyHttpServerTests;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.monitor.fs.FsStats;
-
-import static org.easymock.EasyMock.createMock;
-import static org.easymock.EasyMock.expect;
-import static org.easymock.EasyMock.replay;
 
 /**
  * @author dakrone
  */
-public class TestUtils extends AbstractJettyHttpServerTests {
+public class AbstractEquilibriumTests extends AbstractJettyHttpServerTests {
 
-    public TestUtils() {}
+    public AbstractEquilibriumTests() {}
 
     // Helpers for tests
 
@@ -57,19 +50,20 @@ public class TestUtils extends AbstractJettyHttpServerTests {
         return ClusterHealthStatus.RED == getStatus(id);
     }
 
-    public FsStats makeFakeFsStats(long total, long avail) {
-        FsStats fs = createMock(FsStats.class);
-        FsStats.Info[] infos = new FsStats.Info[1];
-
-        FsStats.Info fsInfo1 = createMock(FsStats.Info.class);
-        expect(fsInfo1.total()).andStubReturn(new ByteSizeValue(total));
-        expect(fsInfo1.available()).andStubReturn(new ByteSizeValue(avail));
-
-        infos[0] = fsInfo1;
-        expect(fs.iterator()).andStubReturn(Iterators.forArray(infos));
-
-        replay(fs, fsInfo1);
-
-        return fs;
+    public void waitForGreen(String id, String idx, String timeout) {
+        if (idx == null) {
+            client(id).admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout(timeout).execute().actionGet();
+        } else {
+            client(id).admin().cluster().prepareHealth(idx).setWaitForGreenStatus().setTimeout(timeout).execute().actionGet();
+        }
     }
+
+    public void waitForYellow(String id, String idx, String timeout) {
+        if (idx == null) {
+            client(id).admin().cluster().prepareHealth().setWaitForYellowStatus().setTimeout(timeout).execute().actionGet();
+        } else {
+            client(id).admin().cluster().prepareHealth(idx).setWaitForYellowStatus().setTimeout(timeout).execute().actionGet();
+        }
+    }
+
 }

@@ -242,6 +242,130 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
 
     /**
+     * Determine whether a shard swap should be attempted
+     *
+     * @param allocation RoutingAllocation for the cluster
+     * @param stats NodeStatsResponse containing FsStats for each node in the cluster
+     * @return true if a swap should be attempted, false otherwise
+     */
+    public boolean eligibleForSwap(final RoutingAllocation allocation, final NodesStatsResponse stats) {
+        // Skip if only one node is present in the cluster
+        if (allocation.nodes().size() == 1) {
+            logger.info("Only one node in the cluster, skipping shard swap check.");
+            return false;
+        }
+
+        if (stats == null) {
+            logger.warn("Unable to determine nodeFsStats, aborting shardSwap.");
+            return false;
+        }
+        return true;
+    }
+
+
+    /**
+     * Given a 'larger' node, a 'smaller' node and stats about the nodes,
+     * determine whether the nodes differ enough in used disk space to warrant
+     * a shard swap.
+     *
+     * @param largeNode Node presumed to be larger
+     * @param smallNode Node presumed to be smaller
+     * @param stats NodeFsStats containing FsStats about the nodes
+     * @return true if the nodes differ enough, false otherwise
+     */
+    public boolean nodesDifferEnoughToSwap(final RoutingNode largeNode, final RoutingNode smallNode,
+                                           final NodesStatsResponse stats) {
+        Map<String, NodeStats> nodeStats = stats.getNodesMap();
+        double largeNodeUsedSize = 100 - averagePercentageFree(nodeStats.get(largeNode.nodeId()).fs());
+        double smallNodeUsedSize = 100 - averagePercentageFree(nodeStats.get(smallNode.nodeId()).fs());
+
+        double sizeDifference = largeNodeUsedSize - smallNodeUsedSize;
+
+        logger.info("Checking size disparity: {}[{} % used] -> {}[{} % used] ({} >= {})",
+                largeNode.nodeId(), largeNodeUsedSize,
+                smallNode.nodeId(), smallNodeUsedSize,
+                sizeDifference, this.minimumSwapDifferencePercentage);
+        return (sizeDifference >= this.minimumSwapDifferencePercentage);
+    }
+
+
+    /**
+     * Checks two shards to see whether they differ enough in size that they
+     * should be swapped
+     *
+     * @param largeShard Large shard to be considered for swapping
+     * @param smallShard Small shard to be considered for swapping
+     * @param shardSizes Map of shardId to shard size for size comparison
+     * @return true if the shards should be swapped, false otherwise
+     */
+    public boolean shardsDifferEnoughToSwap(final MutableShardRouting largeShard,
+                                            final MutableShardRouting smallShard,
+                                            final HashMap<ShardId, Long> shardSizes) {
+        // If we weren't able to find shards that could be swapped, just
+        // bail out early
+        if (largeShard == null || smallShard == null) {
+            logger.info("Unable to find shards to swap. [deciders]");
+            return false;
+        }
+
+        // If we've gone through the list, and the 'larger' shard is
+        // smaller than the 'smaller' shard, don't bother swapping
+        long largeSize = shardSizes.get(largeShard.shardId());
+        long smallSize = shardSizes.get(smallShard.shardId());
+
+        logger.info("Swappable shards found.");
+
+        logger.info("large: {}[{} bytes], small: {}[{} bytes]",
+                largeShard, largeSize, smallShard, smallSize);
+
+        if (largeSize == 0 || smallSize == 0) {
+            logger.warn("Unable to find shards to swap. [shard size 0?!]");
+            return false;
+        }
+
+        // check to make sure it's actually worth swapping shards, the size
+        // disparity should be large enough to make a difference
+        double shardRelativeSize = (100.0 * smallSize / largeSize);
+        if (shardRelativeSize > this.minimumSwapShardRelativeDifferencePercentage) {
+            logger.info("Unable to find suitable shards to swap. Smallest shard {}% of large shard size, must be <= {}%",
+                    shardRelativeSize, this.minimumSwapShardRelativeDifferencePercentage);
+            return false;
+        }
+        logger.info("Small shard is {} % of large shard size, below swapping threshold of {} %.",
+                shardRelativeSize, this.minimumSwapShardRelativeDifferencePercentage);
+
+        return true;
+    }
+
+
+    /**
+     * Returns the first shard out of a list that can be allocated to the 'to'
+     * node. Returns null if no shard can be found.
+     *
+     * @param allocation RoutingAllocation of the cluster
+     * @param shards list of shards to check for relocatibility
+     * @param to RoutingNode to check shard relocation against
+     * @return shard that can be relocated
+     */
+    public MutableShardRouting firstShardThatCanBeRelocated(final RoutingAllocation allocation,
+                                                            final List<MutableShardRouting> shards,
+                                                            final RoutingNode to) {
+        MutableShardRouting resultShard = null;
+
+        for (MutableShardRouting shard : shards) {
+            logger.debug("Checking deciders for {}...", shard);
+            if (allocation.deciders().canAllocate(shard, to, allocation).allocate()) {
+                resultShard = shard;
+                logger.debug("Deciders have OKed {} for swapping.", resultShard);
+                break;
+            }
+        }
+
+        return resultShard;
+    }
+
+
+    /**
      * The shardSwap method checks to see whether the largest and smallest
      * nodes are too far apart from each other, in terms of disk space
      * percentage, and attempts to swap a large shard from the loaded node
@@ -253,38 +377,25 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     public boolean shardSwap(RoutingAllocation allocation) {
         boolean changed = false;
 
-        // Skip if only one node is present in the cluster
-        if (allocation.nodes().size() == 1) {
-            logger.info("Only one node in the cluster, skipping shard swap check.");
+        logger.info("Initiating shard swap check.");
+
+        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
+        if (!eligibleForSwap(allocation, stats)) {
             return changed;
         }
 
-        logger.info("Initiating shard swap check.");
-        NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
-        if (stats == null) {
-            logger.warn("Unable to determine nodeFsStats, aborting shardSwap.");
-            return false;
-        }
-
         RoutingNode[] nodesSmallestToLargest = sortedNodesByFreeSpaceLeastToHigh(allocation, stats);
-        for (RoutingNode node : nodesSmallestToLargest) {
-            logger.debug("Node: {} -> {} % used", node.nodeId(),
-                         (100 - averagePercentageFree(stats.getNodesMap().get(node.nodeId()).fs())));
+        if (logger.isDebugEnabled()) {
+            for (RoutingNode node : nodesSmallestToLargest) {
+                logger.debug("Node: {} -> {} % used", node.nodeId(),
+                        (100 - averagePercentageFree(stats.getNodesMap().get(node.nodeId()).fs())));
+            }
         }
 
         RoutingNode largestNode = nodesSmallestToLargest[0];
         RoutingNode smallestNode = nodesSmallestToLargest[nodesSmallestToLargest.length - 1];
-        double largestNodeUsedSize = 100 - averagePercentageFree(stats.getNodesMap().get(largestNode.nodeId()).fs());
-        double smallestNodeUsedSize = 100 - averagePercentageFree(stats.getNodesMap().get(smallestNode.nodeId()).fs());
 
-        double sizeDifference = largestNodeUsedSize - smallestNodeUsedSize;
-
-        logger.info("Checking size disparity: {}[{} % used] -> {}[{} % used] ({} >= {})",
-                    largestNode.nodeId(), largestNodeUsedSize,
-                    smallestNode.nodeId(), smallestNodeUsedSize,
-                    sizeDifference, this.minimumSwapDifferencePercentage);
-
-        if (sizeDifference >= this.minimumSwapDifferencePercentage) {
+        if (nodesDifferEnoughToSwap(largestNode, smallestNode, stats)) {
             logger.info("Size disparity found, checking for swappable shards.");
             HashMap<ShardId, Long> shardSizes = this.nodeInfoHelper.nodeShardStats();
 
@@ -302,78 +413,24 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             List<MutableShardRouting> smallestNodeShards = sortedStartedShardsOnNodeLargestToSmallest(smallestNode, shardSizes);
             Collections.reverse(smallestNodeShards);
 
-            MutableShardRouting largestShardAvailableForRelocation = null;
-            MutableShardRouting smallestShardAvailableForRelocation = null;
-
             if (logger.isTraceEnabled()) {
                 for (MutableShardRouting shard : largestNodeShards) {
                     logger.trace("[large] shard {} => {}", shard.shardId(), shardSizes.get(shard.shardId()));
                 }
-            }
-
-            // check if we can find a shard to relocate from the largest to
-            // smallest node
-            for (MutableShardRouting shard : largestNodeShards) {
-                logger.debug("[large] Checking deciders for {}...", shard);
-                if (allocation.deciders().canAllocate(shard, smallestNode, allocation).allocate()) {
-                    largestShardAvailableForRelocation = shard;
-                    logger.debug("[large] Deciders have OKed {} for swapping.",
-                                 largestShardAvailableForRelocation);
-                    break;
-                }
-            }
-
-            if (logger.isTraceEnabled()) {
                 for (MutableShardRouting shard : smallestNodeShards) {
                     logger.trace("[small] shard {} => {}", shard.shardId(), shardSizes.get(shard.shardId()));
                 }
             }
 
-            // check if we can find a shard to relocate from the smallest to
-            // largest node
-            for (MutableShardRouting shard : smallestNodeShards) {
-                logger.debug("[small] Checking deciders for {}...", shard);
-                if (allocation.deciders().canAllocate(shard, largestNode, allocation).allocate()) {
-                    smallestShardAvailableForRelocation = shard;
-                    logger.debug("[small] Deciders have OKed {} for swapping.",
-                                 smallestShardAvailableForRelocation);
-                    break;
-                }
-            }
+            MutableShardRouting largestShardAvailableForRelocation =
+                    firstShardThatCanBeRelocated(allocation, largestNodeShards, smallestNode);
+            MutableShardRouting smallestShardAvailableForRelocation =
+                    firstShardThatCanBeRelocated(allocation, smallestNodeShards, largestNode);
 
-            // If we weren't able to find shards that could be swapped, just
-            // bail out early
-            if (largestShardAvailableForRelocation == null || smallestShardAvailableForRelocation == null) {
-                logger.info("Unable to find shards to swap. [deciders]");
+            if (!shardsDifferEnoughToSwap(largestShardAvailableForRelocation,
+                    smallestShardAvailableForRelocation, shardSizes)) {
                 return changed;
             }
-
-            // If we've gone through the list, and the 'larger' shard is
-            // smaller than the 'smaller' shard, don't bother swapping
-            long largeSize = shardSizes.get(largestShardAvailableForRelocation.shardId());
-            long smallSize = shardSizes.get(smallestShardAvailableForRelocation.shardId());
-
-            logger.info("Swappable shards found.");
-
-            logger.info("large: {}[{} bytes], small: {}[{} bytes]",
-                        largestShardAvailableForRelocation, largeSize,
-                        smallestShardAvailableForRelocation, smallSize);
-
-            if (largeSize == 0 || smallSize == 0) {
-                logger.warn("Unable to find shards to swap. [shard size 0?!]");
-                return changed;
-            }
-
-            // check to make sure it's actually worth swapping shards, the size
-            // disparity should be large enough to make a difference
-            double shardRelativeSize = (100.0 * smallSize / largeSize);
-            if (shardRelativeSize > this.minimumSwapShardRelativeDifferencePercentage) {
-                logger.info("Unable to find suitable shards to swap. Smallest shard {}% of large shard size, must be <= {}%",
-                            shardRelativeSize, this.minimumSwapShardRelativeDifferencePercentage);
-                return changed;
-            }
-            logger.info("Small shard is {} % of large shard size, below swapping threshold of {} %.",
-                        shardRelativeSize, this.minimumSwapShardRelativeDifferencePercentage);
 
             // swap the two shards
             logger.info("Swapping ({}) and ({})",
@@ -459,7 +516,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      * @param allocation allocation of shards in the cluster
      * @return an array of nodes sorted by lowest to highest shard count
      */
-    private RoutingNode[] sortedNodesByShardCountLeastToHigh(RoutingAllocation allocation) {
+    private RoutingNode[] sortedNodesByShardCountLeastToHigh(final RoutingAllocation allocation) {
         // create count per node id, taking into account relocations
         final TObjectIntHashMap<String> nodeCounts = new TObjectIntHashMap<String>();
         for (RoutingNode node : allocation.routingNodes()) {
@@ -485,7 +542,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         return nodes;
     }
 
-    private RoutingNode[] sortedNodesByFreeSpaceLeastToHigh(RoutingAllocation allocation,
+    private RoutingNode[] sortedNodesByFreeSpaceLeastToHigh(final RoutingAllocation allocation,
                                                             final NodesStatsResponse nodeStats) {
         RoutingNode[] nodes = allocation.routingNodes().nodesToShards().values().toArray(new RoutingNode[allocation.routingNodes().nodesToShards().values().size()]);
 
@@ -534,7 +591,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      * @param fs object to average free bytes for
      * @return the average available bytes for all mount points
      */
-    public long averageAvailableBytes(FsStats fs) {
+    public long averageAvailableBytes(final FsStats fs) {
         long totalAvail = 0;
         int statNum = 0;
         Iterator<FsStats.Info> i = fs.iterator();
@@ -554,7 +611,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      * @param fs object to average free bytes for
      * @return the average available bytes for all mount points
      */
-    public double averagePercentageFree(FsStats fs) {
+    public double averagePercentageFree(final FsStats fs) {
         double totalPercentages = 0;
         int statNum = 0;
         Iterator<FsStats.Info> i = fs.iterator();
@@ -577,7 +634,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      * @param node RoutingNode to sort shards for
      * @return sorted list of MutableShardRouting shards, sorted by size with the largest first
      */
-    public List<MutableShardRouting> sortedStartedShardsOnNodeLargestToSmallest(RoutingNode node, Map<ShardId, Long> shardSizes) {
+    public List<MutableShardRouting> sortedStartedShardsOnNodeLargestToSmallest(final RoutingNode node,
+                                                                                final Map<ShardId, Long> shardSizes) {
         logger.trace("sortedStartedShardsOnNode");
 
         List<MutableShardRouting> shards = node.shardsWithState(STARTED);
@@ -609,7 +667,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      * @param fs FsStats object to return percentages for
      * @return a List of Doubles representing percentage free values
      */
-    public List<Double> percentagesFree(FsStats fs) {
+    public List<Double> percentagesFree(final FsStats fs) {
         List<Double> results = new ArrayList<Double>();
         Iterator<FsStats.Info> i = fs.iterator();
         while (i.hasNext()) {
@@ -632,7 +690,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
      * @param nodeStats the NodesStatsResponse for FS stats of the cluster
      * @return true if the node is below the threshold, false if not
      */
-    public boolean enoughDiskForShard(MutableShardRouting shard, RoutingNode routingNode, NodesStatsResponse nodeStats) {
+    public boolean enoughDiskForShard(final MutableShardRouting shard, final RoutingNode routingNode,
+                                      final NodesStatsResponse nodeStats) {
         boolean enoughSpace = true;
         
         logger.info("enoughDiskForShard on {} for: {}", routingNode.nodeId(), shard.shardId());
