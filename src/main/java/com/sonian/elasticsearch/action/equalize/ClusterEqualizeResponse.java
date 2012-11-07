@@ -9,7 +9,7 @@ import java.io.IOException;
 /**
  * @author dakrone
  */
-public class ClusterEqualizeResponse implements ActionResponse {
+public class ClusterEqualizeResponse extends ActionResponse {
 
     private boolean acknowledged;
 

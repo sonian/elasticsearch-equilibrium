@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -158,9 +159,9 @@ public class DiskShardsAllocatorUnitTests {
         expect(deciders.canAllocate((MutableShardRouting)anyObject(),
                 (RoutingNode)anyObject(),
                 (RoutingAllocation)anyObject()))
-                .andReturn(AllocationDecider.Decision.NO)
-                .andReturn(AllocationDecider.Decision.YES)
-                .andStubReturn(AllocationDecider.Decision.NO);
+                .andReturn(Decision.NO)
+                .andReturn(Decision.YES)
+                .andStubReturn(Decision.NO);
         replay(deciders);
 
         RoutingAllocation allocation = createMock(RoutingAllocation.class);
