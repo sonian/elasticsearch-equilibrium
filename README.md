@@ -2,6 +2,14 @@
 
 ## 0.19.4
 
+```xml
+<dependency>
+  <groupId>com.sonian</groupId>
+  <artifactId>elasticsearch-equilibrium</artifactId>
+  <version>0.19.4</version>
+</dependency>
+```
+
 In elasticsearch.yml:
 
 ```yaml
