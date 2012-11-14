@@ -1,4 +1,6 @@
-## 0.19.2
+# ElasticSearch Equilibrium
+
+## 0.19.4
 
 In elasticsearch.yml:
 
@@ -27,3 +29,9 @@ Minimum difference in percentage between two shards to consider them
 viable for swapping. For example, if set to 50.0%, the smaller shard
 must be <= 50% the size of the largest shard candidate for swapping.
 Defaults to 75.0%
+
+## Manual rebalancing
+
+```
+% curl -s "http://localhost:9200/_rebalance"
+```
