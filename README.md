@@ -3,7 +3,7 @@
 ## Why?
 
 Depending on how you have ES nodes allocated across the system, and
-the way the your data goes across indices. It is possible to end up
+the way the your data goes across indices, it is possible to end up
 with a cluster that is weighted (in terms of disk) towards certain
 physical nodes. ES-equilibrium was created to ensure that the disk
 limit wasn't accidentally reached when creating new shards, and to
