@@ -12,14 +12,13 @@ allow the ability to balance disk usage across nodes in the cluster.
 A good rule of thumb is: **If you don't know whether you need this,
 you probably don't need it.**
 
-## 0.19.4
+## Installation
 
-```xml
-<dependency>
-  <groupId>com.sonian</groupId>
-  <artifactId>elasticsearch-equilibrium</artifactId>
-  <version>0.19.4</version>
-</dependency>
+The elasticsearch-equilibrium plugin can be installed as any other ES
+plugin using bin/plugin utility:
+
+```
+% bin/plugin -install sonian/elasticsearch-equilibrium/0.19.4
 ```
 
 In elasticsearch.yml:
@@ -68,6 +67,19 @@ evened out.
 Note: this should only be done under supervision of someone that knows
 what they are doing, and only one rebalance should be run at a time.
 Wait for the rebalance to finish before starting another.
+
+## POM
+
+If you need to add elasticsearch-equilibrium to your pom.xml (for some
+reason), you can use:
+
+```xml
+<dependency>
+  <groupId>com.sonian</groupId>
+  <artifactId>elasticsearch-equilibrium</artifactId>
+  <version>0.19.4</version>
+</dependency>
+```
 
 ## Licence
 
