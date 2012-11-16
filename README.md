@@ -43,3 +43,22 @@ Defaults to 75.0%
 ```
 % curl -s "http://localhost:9200/_rebalance"
 ```
+
+Manual rebalancing looks through the cluster to discover the node with
+the highest disk usage (as a percentage), and the node with the lowers
+disk usage (also as a percentage). It then finds the *largest* shard on
+the *largest* node and swaps it with the *smallest* shard on the
+*smallest* node.
+
+In this way, disk usage that may be uneven across a cluster can be
+evened out.
+
+Note: this should only be done under supervision of someone that knows
+what they are doing, and only one rebalance should be run at a time.
+Wait for the rebalance to finish before starting another.
+
+## Licence
+
+Copyright 2012 Lee Hinman & Sonian
+
+Released under the Apache License, 2.0. See LICENSE.txt
