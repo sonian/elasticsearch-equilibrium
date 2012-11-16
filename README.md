@@ -1,5 +1,17 @@
 # ElasticSearch Equilibrium
 
+## Why?
+
+Depending on how you have ES nodes allocated across the system, and
+the way the your data goes across indices. It is possible to end up
+with a cluster that is weighted (in terms of disk) towards certain
+physical nodes. ES-equilibrium was created to ensure that the disk
+limit wasn't accidentally reached when creating new shards, and to
+allow the ability to balance disk usage across nodes in the cluster.
+
+A good rule of thumb is: **If you don't know whether you need this,
+you probably don't need it.**
+
 ## 0.19.4
 
 ```xml
