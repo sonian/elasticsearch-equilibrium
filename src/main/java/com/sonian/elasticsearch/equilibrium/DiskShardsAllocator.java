@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -125,7 +126,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
                 // Here is our added bit. Where, in addition to checking the
                 // allocation deciders, we check there is enough disk space
-                if (allocation.deciders().canAllocate(shard, node, allocation).allocate() &&
+                if (allocation.deciders().canAllocate(shard, node, allocation).type() == Decision.Type.YES &&
                         this.enoughDiskForShard(shard, node, stats)) {
 
                     int avgShardCount = routingNodes.requiredAverageNumberOfShardsPerNode();
@@ -149,7 +150,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
             MutableShardRouting shard = it.next();
             // go over the nodes and try and allocate the remaining ones
             for (RoutingNode routingNode : sortedNodesByShardCountLeastToHigh(allocation)) {
-                if (allocation.deciders().canAllocate(shard, routingNode, allocation).allocate() &&
+                if (allocation.deciders().canAllocate(shard, routingNode, allocation).type() == Decision.Type.YES &&
                         this.enoughDiskForShard(shard, routingNode, stats)) {
                     changed = true;
                     routingNode.add(shard);
@@ -211,13 +212,13 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
                 List<MutableShardRouting> startedShards = highRoutingNode.shardsWithState(STARTED);
                 for (MutableShardRouting startedShard : startedShards) {
-                    if (!allocation.deciders().canRebalance(startedShard, allocation)) {
+                    if (allocation.deciders().canRebalance(startedShard, allocation).type() == Decision.Type.NO) {
                         continue;
                     }
 
                     // in addition to checking the deciders, the shard disk is
                     // checked to ensure it is not above the threshold
-                    if (allocation.deciders().canAllocate(startedShard, lowRoutingNode, allocation).allocate() &&
+                    if (allocation.deciders().canAllocate(startedShard, lowRoutingNode, allocation).type() == Decision.Type.YES &&
                             this.enoughDiskForShard(startedShard, lowRoutingNode, stats)) {
                         changed = true;
                         lowRoutingNode.add(new MutableShardRouting(startedShard.index(), startedShard.id(),
@@ -354,7 +355,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
         for (MutableShardRouting shard : shards) {
             logger.debug("Checking deciders for {}...", shard);
-            if (allocation.deciders().canAllocate(shard, to, allocation).allocate()) {
+            if (allocation.deciders().canAllocate(shard, to, allocation).type() == Decision.Type.YES) {
                 resultShard = shard;
                 logger.debug("Deciders have OKed {} for swapping.", resultShard);
                 break;
@@ -494,7 +495,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
 
             // in addition to checking the deciders, we check that we are not
             // above the disk threshold on the node
-            if (allocation.deciders().canAllocate(shardRouting, nodeToCheck, allocation).allocate() &&
+            if (allocation.deciders().canAllocate(shardRouting, nodeToCheck, allocation).type() == Decision.Type.YES &&
                     this.enoughDiskForShard(shardRouting, nodeToCheck, stats)) {
                 nodeToCheck.add(new MutableShardRouting(shardRouting.index(), shardRouting.id(),
                         nodeToCheck.nodeId(), shardRouting.currentNodeId(),
