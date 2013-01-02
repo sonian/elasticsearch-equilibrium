@@ -18,7 +18,7 @@ The elasticsearch-equilibrium plugin can be installed as any other ES
 plugin using bin/plugin utility:
 
 ```
-% bin/plugin -install sonian/elasticsearch-equilibrium/0.19.4
+% bin/plugin -install sonian/elasticsearch-equilibrium/0.20.0
 ```
 
 In elasticsearch.yml:
@@ -77,7 +77,7 @@ reason), you can use:
 <dependency>
   <groupId>com.sonian</groupId>
   <artifactId>elasticsearch-equilibrium</artifactId>
-  <version>0.19.4</version>
+  <version>0.20.0</version>
 </dependency>
 ```
 
