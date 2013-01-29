@@ -18,7 +18,7 @@ The elasticsearch-equilibrium plugin can be installed as any other ES
 plugin using bin/plugin utility:
 
 ```
-% bin/plugin -install sonian/elasticsearch-equilibrium/0.20.0
+% bin/plugin -install sonian/elasticsearch-equilibrium/0.20.1
 ```
 
 In elasticsearch.yml:
@@ -67,6 +67,11 @@ evened out.
 Note: this should only be done under supervision of someone that knows
 what they are doing, and only one rebalance should be run at a time.
 Wait for the rebalance to finish before starting another.
+
+## Notes
+
+Note that elasticsearch-equilibrium will fail *open* in the event a
+nodeFsStats request times out.
 
 ## POM
 
