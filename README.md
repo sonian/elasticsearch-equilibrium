@@ -18,7 +18,7 @@ The elasticsearch-equilibrium plugin can be installed as any other ES
 plugin using bin/plugin utility:
 
 ```
-% bin/plugin -install sonian/elasticsearch-equilibrium/0.20.1
+% bin/plugin -url https://oss-es-plugins.s3.amazonaws.com/elasticsearch-equilibrium/elasticsearch-equilibrium-0.20.1.zip -install elasticsearch-equilibrium-0.20.1
 ```
 
 In elasticsearch.yml:
