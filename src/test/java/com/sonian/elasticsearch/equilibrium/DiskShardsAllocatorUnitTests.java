@@ -85,9 +85,11 @@ public class DiskShardsAllocatorUnitTests {
 
         boolean resp1 = dsa.enoughDiskForShard(msr, node, smallNSR);
         boolean resp2 = dsa.enoughDiskForShard(msr, node, largeNSR);
+        boolean resp3 = dsa.enoughDiskForShard(msr, node, null);
 
         assertThat("we don't have enough disk on the small node", resp1 == false);
         assertThat("we do have enough disk on the large node", resp2 == true);
+        assertThat("passing null for nodeFsStats fails open", resp3 == true);
 
     }
 
