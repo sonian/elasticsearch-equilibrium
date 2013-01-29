@@ -105,8 +105,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         RoutingNodes routingNodes = allocation.routingNodes();
         NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
         if (stats == null) {
-            logger.warn("Unable to determine nodeFsStats, aborting allocation.");
-            return false;
+            logger.error("Unable to determine nodeFsStats! Continuing allocation with fail-open.");
         }
 
         RoutingNode[] nodes = sortedNodesByShardCountLeastToHigh(allocation);
@@ -481,8 +480,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         }
         NodesStatsResponse stats = this.nodeInfoHelper.nodeFsStats();
         if (stats == null) {
-            logger.warn("Unable to determine nodeFsStats, aborting shard move.");
-            return false;
+            logger.error("Unable to determine nodeFsStats! Continuing shard move with fail-open.");
         }
 
         RoutingNode[] sortedNodesLeastToHigh = sortedNodesByShardCountLeastToHigh(allocation);
@@ -696,6 +694,11 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         boolean enoughSpace = true;
         
         logger.info("enoughDiskForShard on {} for: {}", routingNode.nodeId(), shard.shardId());
+
+        if (null == nodeStats) {
+            logger.warn("Unable to check for enough disk space, nodeStats were not provided. Failing open (true).");
+            return true;
+        }
 
         String nodeId = routingNode.nodeId();
         Map<String, NodeStats> nodeStatsMap = nodeStats.getNodesMap();
