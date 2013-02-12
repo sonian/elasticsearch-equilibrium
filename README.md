@@ -1,4 +1,4 @@
-# ElasticSearch Equilibrium
+# Elasticsearch Equilibrium
 
 ## Why?
 
