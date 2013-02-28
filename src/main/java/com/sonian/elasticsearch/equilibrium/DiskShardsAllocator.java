@@ -188,6 +188,12 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         RoutingNode[] sortedNodesLeastToHigh = sortedNodesByShardCountLeastToHigh(allocation);
         int lowIndex = 0;
         int highIndex = sortedNodesLeastToHigh.length - 1;
+
+        // If only a single node is present, don't bother trying to rebalance.
+        if (sortedNodesLeastToHigh.length <= 1) {
+            return false;
+        }
+
         boolean relocationPerformed;
         do {
             relocationPerformed = false;
