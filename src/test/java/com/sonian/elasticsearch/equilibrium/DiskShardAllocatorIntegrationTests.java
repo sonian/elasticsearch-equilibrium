@@ -63,11 +63,11 @@ public class DiskShardAllocatorIntegrationTests extends AbstractEquilibriumTests
         NodesStatsResponse resp = helper.nodeFsStats();
 
         assertThat("averagePercentageFree is always between 0 and 100 percent",
-                dsa.averagePercentageFree(resp.getNodes()[0].fs()) < 100.0 &&
-                        dsa.averagePercentageFree(resp.getNodes()[0].fs()) > 0.0);
+                dsa.averagePercentageFree(resp.getNodes()[0].getFs()) < 100.0 &&
+                        dsa.averagePercentageFree(resp.getNodes()[0].getFs()) > 0.0);
 
         assertThat("averageAvailableBytes is above 100 bytes",
-                dsa.averageAvailableBytes(resp.getNodes()[0].fs()) > 100.0);
+                dsa.averageAvailableBytes(resp.getNodes()[0].getFs()) > 100.0);
     }
 
 

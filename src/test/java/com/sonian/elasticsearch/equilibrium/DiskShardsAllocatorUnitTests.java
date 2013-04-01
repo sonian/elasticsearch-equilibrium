@@ -37,8 +37,8 @@ public class DiskShardsAllocatorUnitTests {
         final FsStats.Info[] infos = new FsStats.Info[1];
 
         FsStats.Info fsInfo1 = createMock(FsStats.Info.class);
-        expect(fsInfo1.total()).andStubReturn(new ByteSizeValue(total));
-        expect(fsInfo1.available()).andStubReturn(new ByteSizeValue(avail));
+        expect(fsInfo1.getTotal()).andStubReturn(new ByteSizeValue(total));
+        expect(fsInfo1.getAvailable()).andStubReturn(new ByteSizeValue(avail));
 
         infos[0] = fsInfo1;
         expect(fs.iterator()).andStubAnswer(new IAnswer<Iterator<FsStats.Info>>() {

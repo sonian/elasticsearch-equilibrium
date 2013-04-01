@@ -282,8 +282,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
     public boolean nodesDifferEnoughToSwap(final RoutingNode largeNode, final RoutingNode smallNode,
                                            final NodesStatsResponse stats) {
         Map<String, NodeStats> nodeStats = stats.getNodesMap();
-        double largeNodeUsedSize = 100 - averagePercentageFree(nodeStats.get(largeNode.nodeId()).fs());
-        double smallNodeUsedSize = 100 - averagePercentageFree(nodeStats.get(smallNode.nodeId()).fs());
+        double largeNodeUsedSize = 100 - averagePercentageFree(nodeStats.get(largeNode.nodeId()).getFs());
+        double smallNodeUsedSize = 100 - averagePercentageFree(nodeStats.get(smallNode.nodeId()).getFs());
 
         double sizeDifference = largeNodeUsedSize - smallNodeUsedSize;
 
@@ -394,7 +394,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         if (logger.isDebugEnabled()) {
             for (RoutingNode node : nodesSmallestToLargest) {
                 logger.debug("Node: {} -> {} % used", node.nodeId(),
-                        (100 - averagePercentageFree(stats.getNodesMap().get(node.nodeId()).fs())));
+                        (100 - averagePercentageFree(stats.getNodesMap().get(node.nodeId()).getFs())));
             }
         }
 
@@ -554,15 +554,15 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         if (logger.isTraceEnabled()) {
             for (RoutingNode node : nodes) {
                 logger.trace("node: {} -> {}", node.nodeId(),
-                             averageAvailableBytes(nodeStats.getNodesMap().get(node.nodeId()).fs()));
+                             averageAvailableBytes(nodeStats.getNodesMap().get(node.nodeId()).getFs()));
             }
         }
 
         Arrays.sort(nodes, new Comparator<RoutingNode>() {
             @Override
             public int compare(RoutingNode o1, RoutingNode o2) {
-                FsStats fs1 = nodeStats.getNodesMap().get(o1.nodeId()).fs();
-                FsStats fs2 = nodeStats.getNodesMap().get(o2.nodeId()).fs();
+                FsStats fs1 = nodeStats.getNodesMap().get(o1.nodeId()).getFs();
+                FsStats fs2 = nodeStats.getNodesMap().get(o2.nodeId()).getFs();
                 double avgAvailable1 = averagePercentageFree(fs1);
                 double avgAvailable2 = averagePercentageFree(fs2);
                 logger.trace("{}[{}%] vs {}[{}%]",
@@ -582,7 +582,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         if (logger.isTraceEnabled()) {
             for (RoutingNode node : nodes) {
                 logger.trace("SortedNode: {} -> {}", node.nodeId(),
-                             averagePercentageFree(nodeStats.getNodesMap().get(node.nodeId()).fs()));
+                             averagePercentageFree(nodeStats.getNodesMap().get(node.nodeId()).getFs()));
             }
         }
 
@@ -602,7 +602,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         Iterator<FsStats.Info> i = fs.iterator();
         while (i.hasNext()) {
             FsStats.Info stats = i.next();
-            totalAvail += stats.available().bytes();
+            totalAvail += stats.getAvailable().bytes();
             statNum++;
         }
         long avg = (totalAvail / statNum);
@@ -622,8 +622,8 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         Iterator<FsStats.Info> i = fs.iterator();
         while (i.hasNext()) {
             FsStats.Info stats = i.next();
-            double percentFree = 100.0 * ((double)stats.available().bytes() / (double)stats.total().bytes());
-            logger.trace("pFree: {} [{} / {}]", percentFree, stats.available().bytes(), stats.total().bytes());
+            double percentFree = 100.0 * ((double)stats.getAvailable().bytes() / (double)stats.getTotal().bytes());
+            logger.trace("pFree: {} [{} / {}]", percentFree, stats.getAvailable().bytes(), stats.getTotal().bytes());
             totalPercentages += percentFree;
             statNum++;
         }
@@ -677,9 +677,9 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         Iterator<FsStats.Info> i = fs.iterator();
         while (i.hasNext()) {
             FsStats.Info stats = i.next();
-            double percentFree = ((double)stats.available().bytes() / (double)stats.total().bytes()) * 100.0;
+            double percentFree = ((double)stats.getAvailable().bytes() / (double)stats.getTotal().bytes()) * 100.0;
             logger.info("Space: {} bytes available, {} total bytes. Percent free: [{} %]",
-                        stats.available().bytes(), stats.total().bytes(), percentFree);
+                        stats.getAvailable().bytes(), stats.getTotal().bytes(), percentFree);
             results.add(percentFree);
         }
 
@@ -709,7 +709,7 @@ public class DiskShardsAllocator extends AbstractComponent implements ShardsAllo
         String nodeId = routingNode.nodeId();
         Map<String, NodeStats> nodeStatsMap = nodeStats.getNodesMap();
         NodeStats ns = nodeStatsMap.get(nodeId);
-        FsStats fs = ns.fs();
+        FsStats fs = ns.getFs();
         List<Double> percents = percentagesFree(fs);
         for (Double p : percents) {
             if (p < this.minimumAvailablePercentage) {

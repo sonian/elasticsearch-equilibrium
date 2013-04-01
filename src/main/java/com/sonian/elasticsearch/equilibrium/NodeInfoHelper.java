@@ -3,7 +3,7 @@ package com.sonian.elasticsearch.equilibrium;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
-import org.elasticsearch.action.admin.indices.stats.IndicesStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
@@ -89,7 +89,7 @@ public class NodeInfoHelper extends AbstractComponent {
         IndicesStatsRequest request = new IndicesStatsRequest();
         request.clear();
         request.store(true);
-        IndicesStats resp;
+        IndicesStatsResponse resp;
 
         try {
             resp = indicesStatsAction.execute(request).actionGet(shardStatsTimeout);
@@ -98,7 +98,7 @@ public class NodeInfoHelper extends AbstractComponent {
             return null;
         }
         for (ShardStats stats : resp.getShards()) {
-            shardSizes.put(stats.getShardRouting().shardId(), stats.stats().store().getSizeInBytes());
+            shardSizes.put(stats.getShardRouting().shardId(), stats.getStats().getStore().getSizeInBytes());
         }
         return shardSizes;
     }
