@@ -4,11 +4,13 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.Test;
 
@@ -59,15 +61,14 @@ public class DiskShardAllocatorIntegrationTests extends AbstractEquilibriumTests
     public void testNodeFsStats() {
         startNode("1");
         NodeInfoHelper helper = instance("1", NodeInfoHelper.class);
-        DiskShardsAllocator dsa = new DiskShardsAllocator(ImmutableSettings.settingsBuilder().build(), helper);
         NodesStatsResponse resp = helper.nodeFsStats();
 
         assertThat("averagePercentageFree is always between 0 and 100 percent",
-                dsa.averagePercentageFree(resp.getNodes()[0].fs()) < 100.0 &&
-                        dsa.averagePercentageFree(resp.getNodes()[0].fs()) > 0.0);
+                helper.averagePercentageFree(resp.getNodes()[0].getFs()) < 100.0 &&
+                        helper.averagePercentageFree(resp.getNodes()[0].getFs()) > 0.0);
 
         assertThat("averageAvailableBytes is above 100 bytes",
-                dsa.averageAvailableBytes(resp.getNodes()[0].fs()) > 100.0);
+                helper.averageAvailableBytes(resp.getNodes()[0].getFs()) > 100.0);
     }
 
 
@@ -111,9 +112,9 @@ public class DiskShardAllocatorIntegrationTests extends AbstractEquilibriumTests
         replay(allocation, dns);
 
         assertThat("We can't swap with 1 node",
-                dsa.eligibleForSwap(allocation, nih.nodeFsStats()) == false);
+                nih.eligibleForSwap(allocation, nih.nodeFsStats()) == false);
         assertThat("We can't swap with null NodeStats",
-                dsa.eligibleForSwap(allocation, null) == false);
+                nih.eligibleForSwap(allocation, null) == false);
 
         DiscoveryNodes dns2 = createMock(DiscoveryNodes.class);
         expect(dns2.size()).andStubReturn(2);
@@ -123,7 +124,7 @@ public class DiskShardAllocatorIntegrationTests extends AbstractEquilibriumTests
         replay(allocation2, dns2);
 
         assertThat("We can swap with 2 nodes",
-                dsa.eligibleForSwap(allocation2, nih.nodeFsStats()));
+                nih.eligibleForSwap(allocation2, nih.nodeFsStats()));
 
     }
 

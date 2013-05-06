@@ -3,6 +3,7 @@
         "name": "disk-allocation-test"
     },
     "sonian.elasticsearch.equilibrium": {
-        "enabled": true
+        "enabled": true,
+        "minimumAvailablePercentage": 20.0
     }
 }

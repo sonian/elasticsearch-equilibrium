@@ -33,7 +33,7 @@ public class TransportClusterEqualizeAction extends TransportMasterNodeOperation
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.CACHE;
+        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override
