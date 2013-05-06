@@ -4,6 +4,6 @@
     },
     "sonian.elasticsearch.equilibrium": {
         "enabled": true,
-        "minimumAvailablePercentage": 20.0
+        "minimumAvailablePercentage": 10.0
     }
 }
