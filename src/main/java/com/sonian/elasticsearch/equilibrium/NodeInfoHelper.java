@@ -112,9 +112,12 @@ public class NodeInfoHelper extends AbstractComponent {
         if (this.cachedNodeStats == null || (cachediff > this.nodeFsStatsCacheTTL.millis())) {
             try {
                 logger.info("Executing nodeStatsAction...");
-                this.cachedNodeStats = this.nodeFsStats();
+                NodesStatsResponse nsr = this.nodeFsStats();
+                if (nsr != null) {
+                    this.cachedNodeStats = nsr;
+                    this.lastNodeStatsTime = now;
+                }
                 logger.info("finished executing nodeStatsAction.");
-                this.lastNodeStatsTime = now;
             } catch (Exception e) {
                 logger.error("Exception getting nodeFsStats for all nodes.", e);
                 logger.warn("Returning cached value for nodeFsStats.");
