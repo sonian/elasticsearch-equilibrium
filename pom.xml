@@ -6,7 +6,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.sonian</groupId>
   <artifactId>elasticsearch-equilibrium</artifactId>
-  <version>0.20.2</version>
+  <version>0.90.0-SNAPSHOT</version>
   <packaging>jar</packaging>
   <description>Shard allocation plugin for ElasticSearch</description>
   <inceptionYear>2011</inceptionYear>
@@ -46,7 +46,7 @@
   </parent>
 
   <properties>
-    <elasticsearch.version>0.20.5</elasticsearch.version>
+    <elasticsearch.version>0.90.0</elasticsearch.version>
   </properties>
 
   <repositories>
@@ -64,6 +64,19 @@
       <version>${elasticsearch.version}</version>
       <scope>compile</scope>
     </dependency>
+
+      <dependency>
+          <groupId>com.google.guava</groupId>
+          <artifactId>guava</artifactId>
+          <version>14.0.1</version>
+          <scope>compile</scope>
+          <exclusions>
+              <exclusion>
+                  <groupId>com.google.code.findbugs</groupId>
+                  <artifactId>jsr305</artifactId>
+              </exclusion>
+          </exclusions>
+      </dependency>
 
     <dependency>
       <groupId>com.sonian</groupId>

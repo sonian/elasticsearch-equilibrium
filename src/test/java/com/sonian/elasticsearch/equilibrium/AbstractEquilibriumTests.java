@@ -35,7 +35,7 @@ public class AbstractEquilibriumTests extends AbstractJettyHttpServerTests {
     public ClusterHealthStatus getStatus(String id) {
         Client c = client(id);
         ClusterHealthResponse healthResponse = c.admin().cluster().prepareHealth().setTimeout("2s").execute().actionGet();
-        return healthResponse.status();
+        return healthResponse.getStatus();
     }
 
     public boolean isGreen (String id) {
