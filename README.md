@@ -18,7 +18,7 @@ The elasticsearch-equilibrium plugin can be installed as any other ES
 plugin using bin/plugin utility:
 
 ```
-% bin/plugin -url https://oss-es-plugins.s3.amazonaws.com/elasticsearch-equilibrium/elasticsearch-equilibrium-0.20.2.zip -install elasticsearch-equilibrium-0.20.2
+% bin/plugin -url https://oss-es-plugins.s3.amazonaws.com/elasticsearch-equilibrium/elasticsearch-equilibrium-0.90.0.zip -install elasticsearch-equilibrium-0.90.0
 ```
 
 In elasticsearch.yml:
@@ -82,7 +82,7 @@ reason), you can use:
 <dependency>
   <groupId>com.sonian</groupId>
   <artifactId>elasticsearch-equilibrium</artifactId>
-  <version>0.20.2</version>
+  <version>0.90.0</version>
 </dependency>
 ```
 
