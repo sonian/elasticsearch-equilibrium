@@ -196,7 +196,6 @@ public class NodeInfoHelper extends AbstractComponent {
      * @return a Map of ShardId to size in bytes of the shard
      */
     public HashMap<ShardId, Long> nodeShardStats() {
-        logger.trace("nodeShardStats");
         final HashMap<ShardId, Long> shardSizes = new HashMap<ShardId, Long>();
         IndicesStatsRequest request = new IndicesStatsRequest();
         request.clear();
@@ -563,8 +562,6 @@ public class NodeInfoHelper extends AbstractComponent {
      */
     public List<MutableShardRouting> sortedStartedShardsOnNodeLargestToSmallest(final RoutingNode node,
                                                                                 final Map<ShardId, Long> shardSizes) {
-        logger.trace("sortedStartedShardsOnNode");
-
         List<MutableShardRouting> shards = node.shardsWithState(STARTED);
         final HashMap<MutableShardRouting, Long> sizeMap = new HashMap<MutableShardRouting, Long>();
         for (MutableShardRouting shard : shards) {
