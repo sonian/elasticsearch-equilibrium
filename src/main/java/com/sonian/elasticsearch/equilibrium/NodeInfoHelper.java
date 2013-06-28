@@ -104,26 +104,26 @@ public class NodeInfoHelper extends AbstractComponent {
 
         long now = new Date().getTime();
         long cachediff = now - this.lastNodeStatsTime;
-        logger.debug("checking cache time difference: {} > {} ?", cachediff, this.nodeFsStatsCacheTTL.millis());
+        logger.trace("checking cache time difference: {} > {} ?", cachediff, this.nodeFsStatsCacheTTL.millis());
 
         if (this.cachedNodeStats == null) {
-            logger.info("Never retrieved nodeFsStats, retrieving...");
+            logger.debug("Never retrieved nodeFsStats, retrieving...");
         }
         if (this.cachedNodeStats == null || (cachediff > this.nodeFsStatsCacheTTL.millis())) {
             try {
-                logger.info("Executing nodeStatsAction...");
+                logger.debug("Executing nodeStatsAction...");
                 NodesStatsResponse nsr = this.nodeFsStats();
                 if (nsr != null) {
                     this.cachedNodeStats = nsr;
                     this.lastNodeStatsTime = now;
                 }
-                logger.info("finished executing nodeStatsAction.");
+                logger.debug("finished executing nodeStatsAction.");
             } catch (Exception e) {
                 logger.error("Exception getting nodeFsStats for all nodes.", e);
                 logger.warn("Returning cached value for nodeFsStats.");
             }
         } else {
-            logger.info("Returning cached NodesStatsResponse, age: {}ms", cachediff);
+            logger.trace("Returning cached NodesStatsResponse, age: {}ms", cachediff);
         }
 
         return this.cachedNodeStats;
@@ -138,7 +138,7 @@ public class NodeInfoHelper extends AbstractComponent {
      * @return true if the node is below the threshold, false if not
      */
     public boolean enoughDiskForShard(final String nodeId, double minimumAvailablePercentage) {
-        logger.info("enoughDiskForShard on {}.", nodeId);
+        logger.debug("enoughDiskForShard on {}.", nodeId);
 
         boolean enoughSpace = true;
         NodesStatsResponse nodeStats;
@@ -160,7 +160,7 @@ public class NodeInfoHelper extends AbstractComponent {
         List<Double> percents = percentagesFree(fs);
         for (Double p : percents) {
             if (p < minimumAvailablePercentage) {
-                logger.info("Throttling shard allocation due to excessive disk use ({} < {} % free) on {}",
+                logger.warn("Throttling shard allocation due to excessive disk use ({} < {} % free) on {}",
                         p, minimumAvailablePercentage, nodeId);
                 enoughSpace = false;
             }
@@ -181,7 +181,7 @@ public class NodeInfoHelper extends AbstractComponent {
         while (i.hasNext()) {
             FsStats.Info stats = i.next();
             double percentFree = ((double)stats.getAvailable().bytes() / (double)stats.getTotal().bytes()) * 100.0;
-            logger.info("Space: {} bytes available, {} total bytes. Percent free: [{} %]",
+            logger.debug("Space: {} bytes available, {} total bytes. Percent free: [{} %]",
                     stats.getAvailable().bytes(), stats.getTotal().bytes(), percentFree);
             results.add(percentFree);
         }
@@ -196,7 +196,6 @@ public class NodeInfoHelper extends AbstractComponent {
      * @return a Map of ShardId to size in bytes of the shard
      */
     public HashMap<ShardId, Long> nodeShardStats() {
-        logger.trace("nodeShardStats");
         final HashMap<ShardId, Long> shardSizes = new HashMap<ShardId, Long>();
         IndicesStatsRequest request = new IndicesStatsRequest();
         request.clear();
@@ -563,8 +562,6 @@ public class NodeInfoHelper extends AbstractComponent {
      */
     public List<MutableShardRouting> sortedStartedShardsOnNodeLargestToSmallest(final RoutingNode node,
                                                                                 final Map<ShardId, Long> shardSizes) {
-        logger.trace("sortedStartedShardsOnNode");
-
         List<MutableShardRouting> shards = node.shardsWithState(STARTED);
         final HashMap<MutableShardRouting, Long> sizeMap = new HashMap<MutableShardRouting, Long>();
         for (MutableShardRouting shard : shards) {
