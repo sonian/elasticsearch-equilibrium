@@ -1,5 +1,11 @@
 # Elasticsearch Equilibrium
 
+## Why not?
+
+Because in Elasticsearch 0.90.4 a new disk-based shard allocator was
+added.  If you are running a version of Elasticsearch greater than
+0.90.4, then you should use that instead.
+
 ## Why?
 
 Depending on how you have ES nodes allocated across the system, and
